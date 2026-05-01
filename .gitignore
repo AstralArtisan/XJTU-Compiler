@@ -27,3 +27,6 @@ lab*/
 # Misc
 tokens.out
 *.pdf
+.omx/
+.playwright-mcp/
+*.png

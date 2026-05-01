@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XJTU Compiler Visualizer</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="logo">XJTU <span class="accent">Compiler</span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="dfa" role="tab" aria-selected="true">DFA Explorer</button>
+      <button class="tab" data-view="scanner" role="tab" aria-selected="false">Lexical Analyzer</button>
+    </nav>
+  </header>
+
+  <!-- DFA Explorer View -->
+  <main id="view-dfa" class="view active">
+    <div class="panel-row">
+      <section class="panel dfa-input-panel">
+        <div class="panel-header">
+          <h2>DFA Definition</h2>
+          <div class="btn-group">
+            <button id="btn-load-sample" class="btn btn-sm">Load Sample</button>
+            <label class="btn btn-sm btn-accent" tabindex="0">
+              Upload JSON
+              <input type="file" id="dfa-file-input" accept=".json" hidden>
+            </label>
+          </div>
+        </div>
+        <textarea id="dfa-json" class="code-editor" spellcheck="false" placeholder="Paste DFA JSON here or upload a file..."></textarea>
+        <button id="btn-render-dfa" class="btn btn-accent btn-block">Render DFA</button>
+      </section>
+      <section class="panel dfa-graph-panel">
+        <div class="panel-header"><h2>State Transition Graph</h2></div>
+        <div id="dfa-graph" class="graph-container"></div>
+      </section>
+    </div>
+    <div class="panel-row">
+      <section class="panel dfa-test-panel">
+        <div class="panel-header"><h2>String Tester</h2></div>
+        <div class="test-input-row">
+          <input type="text" id="dfa-test-input" class="input" placeholder="Enter a string to test...">
+          <button id="btn-test-string" class="btn btn-accent">Test</button>
+          <button id="btn-animate" class="btn">Animate</button>
+        </div>
+        <div id="dfa-test-result" class="test-result"></div>
+        <div id="dfa-step-display" class="step-display"></div>
+      </section>
+      <section class="panel dfa-enum-panel">
+        <div class="panel-header"><h2>Accepted Strings</h2></div>
+        <div class="test-input-row">
+          <label>Max length:</label>
+          <input type="number" id="dfa-enum-len" class="input input-sm" value="3" min="0" max="8">
+          <button id="btn-enumerate" class="btn btn-accent">Enumerate</button>
+        </div>
+        <div id="dfa-enum-result" class="enum-result"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Lexical Analyzer View -->
+  <main id="view-scanner" class="view">
+    <div class="panel-row scanner-row">
+      <section class="panel scanner-input-panel">
+        <div class="panel-header">
+          <h2>Source Code</h2>
+          <div class="btn-group">
+            <button id="btn-scan-sample" class="btn btn-sm">Load Sample</button>
+            <label class="btn btn-sm btn-accent" tabindex="0">
+              Upload JSON
+              <input type="file" id="scan-file-input" accept=".json" hidden>
+            </label>
+          </div>
+        </div>
+        <textarea id="scan-source" class="code-editor" spellcheck="false" placeholder="Enter source code here..."></textarea>
+        <div id="scan-highlighted" class="highlighted-source"></div>
+      </section>
+      <section class="panel scanner-output-panel">
+        <div class="panel-header">
+          <h2>Token Stream</h2>
+          <div class="btn-group">
+            <select id="scan-mode" class="select">
+              <option value="hand">Hand-written Scanner</option>
+              <option value="table">Table-driven Scanner</option>
+            </select>
+          </div>
+        </div>
+        <div class="token-table-wrap">
+          <table id="token-table" class="token-table">
+            <thead>
+              <tr><th>#</th><th>Kind</th><th>Lexeme</th><th>Line</th><th>Col</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="scan-stats" class="scan-stats"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
