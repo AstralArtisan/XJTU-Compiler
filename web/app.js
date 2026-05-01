@@ -2,6 +2,19 @@
    XJTU Compiler Visualizer
    ═══════════════════════════════════════════════════ */
 
+/* ── API Config ───────────────────────────────────── */
+const API_URL = localStorage.getItem('api_url') || 'http://igw.netperf.cc:8080';
+let apiAvailable = false;
+
+async function checkAPI() {
+  const badge = document.getElementById('api-badge');
+  try {
+    const r = await fetch(API_URL + '/api/health', { signal: AbortSignal.timeout(2000) });
+    if (r.ok) { apiAvailable = true; badge.textContent = 'API online'; badge.className = 'api-badge online'; }
+  } catch (_) { apiAvailable = false; badge.textContent = 'Local mode'; badge.className = 'api-badge offline'; }
+}
+checkAPI();
+
 /* ── Tabs ─────────────────────────────────────────── */
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -348,10 +361,31 @@ document.getElementById('btn-scan-sample').addEventListener('click',()=>{
   showTokens(tokenize(SAMPLE_SOURCE));
 });
 
-document.getElementById('btn-scan-run').addEventListener('click',()=>{
+document.getElementById('btn-scan-run').addEventListener('click', async ()=>{
   const src=document.getElementById('scan-source').value;
   if(!src.trim()) return;
+  const btn=document.getElementById('btn-scan-run');
+  btn.disabled=true; btn.textContent='Scanning...';
+  try {
+    if (apiAvailable) {
+      const r = await fetch(API_URL + '/api/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source: src}),
+        signal: AbortSignal.timeout(5000)
+      });
+      if (r.ok) {
+        const data = await r.json();
+        showTokens(data.tokens || []);
+        btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg> Scan (API)';
+        btn.disabled=false;
+        return;
+      }
+    }
+  } catch(_) {}
   showTokens(tokenize(src));
+  btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg> Scan (Local)';
+  btn.disabled=false;
 });
 
 document.getElementById('scan-file-input').addEventListener('change',e=>{
