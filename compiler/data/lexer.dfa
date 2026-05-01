@@ -1,0 +1,97 @@
+# Lexer DFA — unified format
+# Recognizes: ID, NUM, FLOAT, operators, delimiters
+# Used by both dfa.c (lab1 enumerate/simulate) and table_scanner.c (lab2 tokenize)
+
+CHARCLASS:
+  LETTER  a-d f-z A-D F-Z _
+  EDIGIT  e E
+  DIGIT   0-9
+  DOT     .
+  PLUS    +
+  MINUS   -
+  STAR    *
+  SLASH   /
+  LT      <
+  GT      >
+  EQ      =
+  BANG    !
+  AMP     &
+  PIPE    |
+  LPAREN  (
+  RPAREN  )
+  LBRACK  [
+  RBRACK  ]
+  LBRACE  {
+  RBRACE  }
+  COMMA   ,
+  COLON   :
+  SEMI    ;
+END
+
+STATES: 102
+START: 0
+
+ACCEPT:
+  1=ID 2=NUM 3=FLOAT 4=FLOAT
+  10=ADD 11=AAS 12=AAA
+  13=SUB 14=MUL 15=DIV
+  16=LT 17=LE 18=GT 19=GE
+  20=ASG 21=EQ 22=NOT 23=NE
+  24=AND 25=OR
+  26=LPAR 27=RPAR 28=LBK 29=RBK 30=LBR 31=RBR
+  5=CMA 6=COL 7=SCO 8=FLOAT 9=DOT
+
+TRANS:
+  0 LETTER -> 1
+  0 EDIGIT -> 1
+  0 DIGIT  -> 2
+  0 DOT    -> 9
+  0 PLUS   -> 10
+  0 MINUS  -> 13
+  0 STAR   -> 14
+  0 SLASH  -> 15
+  0 LT     -> 16
+  0 GT     -> 18
+  0 EQ     -> 20
+  0 BANG   -> 22
+  0 AMP    -> 24
+  0 PIPE   -> 25
+  0 LPAREN -> 26
+  0 RPAREN -> 27
+  0 LBRACK -> 28
+  0 RBRACK -> 29
+  0 LBRACE -> 30
+  0 RBRACE -> 31
+  0 COMMA  -> 5
+  0 COLON  -> 6
+  0 SEMI   -> 7
+  1 LETTER -> 1
+  1 EDIGIT -> 1
+  1 DIGIT  -> 1
+  2 DIGIT  -> 2
+  2 DOT    -> 3
+  2 EDIGIT -> 100
+  9 DIGIT  -> 8
+  3 DIGIT  -> 3
+  3 EDIGIT -> 100
+  8 DIGIT  -> 8
+  8 EDIGIT -> 100
+  100 DIGIT -> 4
+  100 PLUS  -> 101
+  100 MINUS -> 101
+  101 DIGIT -> 4
+  4 DIGIT  -> 4
+  10 EQ    -> 11
+  10 PLUS  -> 12
+  16 EQ    -> 17
+  18 EQ    -> 19
+  20 EQ    -> 21
+  22 EQ    -> 23
+  24 AMP   -> 24
+  25 PIPE  -> 25
+END
+
+KEYWORDS:
+  int=INT float=FLOAT void=VOID if=IF else=ELSE
+  while=WHILE return=RETURN input=INPUT print=PRINT
+END

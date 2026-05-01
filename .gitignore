@@ -1,0 +1,29 @@
+# Build artifacts
+*.o
+*.exe
+*.out
+compiler/compiler
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Editor temp files
+~$*
+*.swp
+*.swo
+*~
+
+# Lab directories (local only, contain PPT/reports/personal info)
+lab*/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# Misc
+tokens.out
+*.pdf
