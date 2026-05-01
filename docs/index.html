@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a0e17">
   <title>XJTU Compiler Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,8 +15,8 @@
   <header>
     <div class="logo">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="url(#logo-grad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <defs><linearGradient id="logo-grad" x1="3" y1="2" x2="21" y2="22"><stop stop-color="#60a5fa"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs>
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="url(#lg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs><linearGradient id="lg" x1="3" y1="2" x2="21" y2="22"><stop stop-color="#60a5fa"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs>
       </svg>
       <span>XJTU <span class="accent">Compiler</span></span>
     </div>
@@ -43,14 +43,38 @@
         <div class="card-header">
           <h2>DFA Definition</h2>
           <div class="btn-group">
-            <button id="btn-load-sample" class="btn btn-ghost btn-sm">Sample</button>
-            <label class="btn btn-primary btn-sm" tabindex="0">
-              Upload
-              <input type="file" id="dfa-file-input" accept=".json" hidden>
-            </label>
+            <button id="btn-mode-form" class="btn btn-sm btn-ghost active-toggle" aria-pressed="true">Form</button>
+            <button id="btn-mode-json" class="btn btn-sm btn-ghost" aria-pressed="false">JSON</button>
+            <button id="btn-load-sample" class="btn btn-sm btn-ghost">Sample</button>
           </div>
         </div>
-        <textarea id="dfa-json" class="code-editor" spellcheck="false" rows="10" aria-label="DFA JSON definition"></textarea>
+        <!-- Form mode -->
+        <div id="dfa-form" class="dfa-form">
+          <div class="form-row">
+            <label for="df-alphabet">Alphabet</label>
+            <input type="text" id="df-alphabet" class="input" placeholder="e.g. ab" spellcheck="false">
+          </div>
+          <div class="form-row-2">
+            <div class="form-row">
+              <label for="df-states">States</label>
+              <input type="number" id="df-states" class="input input-sm" value="3" min="1">
+            </div>
+            <div class="form-row">
+              <label for="df-start">Start</label>
+              <input type="number" id="df-start" class="input input-sm" value="1" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="df-accept">Accept states</label>
+            <input type="text" id="df-accept" class="input" placeholder="e.g. 3" spellcheck="false">
+          </div>
+          <div class="form-row">
+            <label>Transition table <span class="hint">(one row per state, space-separated next states)</span></label>
+            <textarea id="df-trans" class="code-editor code-editor-sm" spellcheck="false" rows="4" aria-label="Transition table"></textarea>
+          </div>
+        </div>
+        <!-- JSON mode -->
+        <textarea id="dfa-json" class="code-editor hidden" spellcheck="false" rows="10" aria-label="DFA JSON"></textarea>
         <button id="btn-render-dfa" class="btn btn-primary btn-block">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           Render
@@ -58,14 +82,16 @@
       </section>
       <section class="card fade-in" style="animation-delay:.05s">
         <div class="card-header"><h2>State Transition Graph</h2></div>
-        <canvas id="dfa-canvas" width="800" height="500"></canvas>
+        <div class="canvas-wrap">
+          <canvas id="dfa-canvas"></canvas>
+        </div>
       </section>
     </div>
     <div class="grid-2">
       <section class="card fade-in" style="animation-delay:.1s">
         <div class="card-header"><h2>String Tester</h2></div>
         <div class="input-row">
-          <input type="text" id="dfa-test-input" class="input" placeholder="Enter string to test…" aria-label="Test string">
+          <input type="text" id="dfa-test-input" class="input" placeholder="Enter string to test..." aria-label="Test string">
           <button id="btn-test-string" class="btn btn-primary">Test</button>
           <button id="btn-animate" class="btn btn-ghost">Animate</button>
         </div>
@@ -76,7 +102,7 @@
         <div class="card-header"><h2>Accepted Strings</h2></div>
         <div class="input-row">
           <label for="dfa-enum-len" class="label-text">Max length</label>
-          <input type="number" id="dfa-enum-len" class="input input-sm" value="3" min="0" max="8" aria-label="Max string length">
+          <input type="number" id="dfa-enum-len" class="input input-sm" value="3" min="0" max="8">
           <button id="btn-enumerate" class="btn btn-primary">Enumerate</button>
         </div>
         <div id="dfa-enum-result" class="enum-list" aria-live="polite"></div>
@@ -92,16 +118,15 @@
           <h2>Source Code</h2>
           <div class="btn-group">
             <button id="btn-scan-sample" class="btn btn-ghost btn-sm">Sample</button>
-            <label class="btn btn-primary btn-sm" tabindex="0">
+            <button id="btn-scan-run" class="btn btn-primary btn-sm">Scan</button>
+            <label class="btn btn-ghost btn-sm" tabindex="0">
               Upload JSON
               <input type="file" id="scan-file-input" accept=".json" hidden>
             </label>
           </div>
         </div>
-        <div class="source-wrap">
-          <textarea id="scan-source" class="code-editor code-editor-tall" spellcheck="false" aria-label="Source code"></textarea>
-          <div id="scan-highlighted" class="highlighted-overlay"></div>
-        </div>
+        <textarea id="scan-source" class="code-editor code-editor-tall" spellcheck="false" aria-label="Source code" placeholder="Type or paste source code here, then click Scan..."></textarea>
+        <div id="scan-highlighted" class="highlighted-overlay"></div>
       </section>
       <section class="card fade-in" style="animation-delay:.05s">
         <div class="card-header">
