@@ -12,8 +12,8 @@ compiler/           C 编译器源码
   src/              源码 (dfa.c, scanner.c, table_scanner.c, main.c, token.c)
   data/             DFA 定义文件 (.dfa 格式)
   tests/            测试用例
-web/                前端可视化 (开发目录)
-docs/               前端可视化 (GitHub Pages 部署目录)
+docs/               前端可视化 (GitHub Pages 部署目录，上传 GitHub)
+web/                前端可视化本地开发目录 (不上传 GitHub)
 ```
 
 ## 构建
@@ -37,7 +37,10 @@ make clean && make
 ./compiler dfa data/simple.dfa --enumerate 3
 
 # 测试单个字符串
-./compiler dfa data/simple.dfa --test "aab"
+./compiler dfa data/simple.dfa --test "aa"
+
+# 输出识别过程
+./compiler dfa data/simple.dfa --test "aba" --trace
 
 # JSON 输出（供前端可视化）
 ./compiler dfa data/simple.dfa --format=json
@@ -46,11 +49,17 @@ make clean && make
 ### 词法分析 (Lab2)
 
 ```bash
-# 手写 scanner（默认）
+# 表驱动 scanner（默认，基于 Lab1 DFA 引擎）
 ./compiler scan -f tests/scan/sample.c
 
-# 表驱动 scanner（基于 DFA 引擎，体现 lab1→lab2 关联）
+# 显式指定 DFA 规则文件
 ./compiler scan -f tests/scan/sample.c --table data/lexer.dfa
+
+# 手写 scanner（选做对照）
+./compiler scan -f tests/scan/sample.c --impl=hand
+
+# 对比手写和表驱动输出
+./compiler scan --compare -f tests/scan/sample.c
 
 # JSON 输出
 ./compiler scan -f tests/scan/sample.c --format=json
@@ -91,12 +100,13 @@ make clean && make
 **旧格式**（lab1 兼容）：
 ```
 ab          # 字母表
-3           # 状态数
+4           # 状态数
 1           # 起始状态
-3           # 接受状态
-2 1         # 状态 1 的转移
-2 3         # 状态 2 的转移
-2 3         # 状态 3 的转移
+4           # 接受状态
+2 3         # 状态 1 的转移
+4 3         # 状态 2 的转移
+2 4         # 状态 3 的转移
+4 4         # 状态 4 的转移
 ```
 
 **扩展格式**（支持字符类、token 标注、关键字）：
@@ -139,7 +149,7 @@ END
             └────────┘ └────────┘ └───┬────┘
                  ▲                    │
                  └────── dfa_step() ──┘
-                   Lab1 引擎驱动 Lab2
+                   Lab1 DFA 引擎驱动 Lab2 表驱动 scanner
 ```
 
 ## 实验进度

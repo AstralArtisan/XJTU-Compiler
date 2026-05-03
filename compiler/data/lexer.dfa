@@ -37,7 +37,7 @@ ACCEPT:
   13=SUB 14=MUL 15=DIV
   16=LT 17=LE 18=GT 19=GE
   20=ASG 21=EQ 22=NOT 23=NE
-  24=AND 25=OR
+  34=AND 35=OR
   26=LPAR 27=RPAR 28=LBK 29=RBK 30=LBR 31=RBR
   5=CMA 6=COL 7=SCO 8=FLOAT 9=DOT
 
@@ -87,11 +87,11 @@ TRANS:
   18 EQ    -> 19
   20 EQ    -> 21
   22 EQ    -> 23
-  24 AMP   -> 24
-  25 PIPE  -> 25
+  24 AMP   -> 34
+  25 PIPE  -> 35
 END
 
 KEYWORDS:
-  int=INT float=FLOAT void=VOID if=IF else=ELSE
+  int=INT float=FLOAT_KW void=VOID if=IF else=ELSE
   while=WHILE return=RETURN input=INPUT print=PRINT
 END

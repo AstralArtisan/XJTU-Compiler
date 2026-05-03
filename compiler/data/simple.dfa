@@ -1,10 +1,8 @@
-# Simple DFA: recognizes strings over {a,b}
-# Language: a(a|b)*b — starts with 'a', ends with 'b'
-# This is the lab1 legacy format (pure numeric)
 ab
-3
+4
 1
-3
-2 1
+4
 2 3
-2 3
+4 3
+2 4
+4 4

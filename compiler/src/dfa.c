@@ -235,6 +235,17 @@ bool dfa_validate(const DFA *dfa) {
             return false;
         }
     }
+    for (int s = lo; s <= hi; s++) {
+        for (int c = 0; c < dfa->symbol_count; c++) {
+            int next = dfa->transitions[s][c];
+            if (dfa->extended && next == 0 && s != 0) continue;
+            if (next < lo || next > hi) {
+                fprintf(stderr, "transition from state %d on symbol %d points outside [%d,%d]\n",
+                        s, c, lo, hi);
+                return false;
+            }
+        }
+    }
     return true;
 }
 
@@ -335,25 +346,45 @@ bool dfa_simulate(const DFA *dfa, const char *input) {
     return dfa_is_accept(dfa, state);
 }
 
+bool dfa_trace(const DFA *dfa, const char *input, FILE *out) {
+    int state = dfa->start_state;
+    fprintf(out, "start: %d\n", state);
+    for (int i = 0; input[i]; i++) {
+        int next = dfa_step(dfa, state, (unsigned char)input[i]);
+        if (next < 0) {
+            fprintf(out, "%d --%c--> ERROR\n", state, input[i]);
+            fprintf(out, "result: REJECT\n");
+            return false;
+        }
+        fprintf(out, "%d --%c--> %d\n", state, input[i], next);
+        state = next;
+    }
+    bool ok = dfa_is_accept(dfa, state);
+    fprintf(out, "final: %d\n", state);
+    fprintf(out, "result: %s\n", ok ? "ACCEPT" : "REJECT");
+    return ok;
+}
+
 /* ── lab1 core: enumerate ────────────────────────────── */
 
-static void enum_rec(const DFA *dfa, int state, int depth, int max_len,
+static void enum_rec(const DFA *dfa, int state, int depth, int target_len,
                      char *buf, int *count, FILE *out) {
-    if (dfa_is_accept(dfa, state)) {
+    if (depth == target_len) {
+        if (!dfa_is_accept(dfa, state)) return;
         buf[depth] = '\0';
         if (depth == 0)
             fprintf(out, "<epsilon>\n");
         else
             fprintf(out, "%s\n", buf);
         (*count)++;
+        return;
     }
-    if (depth >= max_len) return;
 
     if (!dfa->extended) {
         for (int i = 0; i < dfa->symbol_count; i++) {
             int next = dfa->transitions[state][i];
             buf[depth] = dfa->alphabet[i];
-            enum_rec(dfa, next, depth + 1, max_len, buf, count, out);
+            enum_rec(dfa, next, depth + 1, target_len, buf, count, out);
         }
     } else {
         for (int i = 0; i < dfa->class_count; i++) {
@@ -361,7 +392,7 @@ static void enum_rec(const DFA *dfa, int state, int depth, int max_len,
             if (next == 0 && state != 0) continue;
             char rep = dfa->classes[i].chars[0];
             buf[depth] = rep;
-            enum_rec(dfa, next, depth + 1, max_len, buf, count, out);
+            enum_rec(dfa, next, depth + 1, target_len, buf, count, out);
         }
     }
 }
@@ -369,7 +400,8 @@ static void enum_rec(const DFA *dfa, int state, int depth, int max_len,
 void dfa_enumerate(const DFA *dfa, int max_len, FILE *out) {
     char buf[256];
     int count = 0;
-    enum_rec(dfa, dfa->start_state, 0, max_len, buf, &count, out);
+    for (int len = 0; len <= max_len; len++)
+        enum_rec(dfa, dfa->start_state, 0, len, buf, &count, out);
     fprintf(out, "Total: %d strings\n", count);
 }
 

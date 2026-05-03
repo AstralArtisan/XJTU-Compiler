@@ -28,10 +28,10 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 
 /* ── Samples ──────────────────────────────────────── */
 const SAMPLE_DFA = {
-  extended: false, states: 3, start: 1,
-  accept: [3], accept_labels: {},
+  extended: false, states: 4, start: 1,
+  accept: [4], accept_labels: {},
   alphabet: "ab",
-  transitions: [[2,1],[2,3],[2,3]],
+  transitions: [[2,3],[4,3],[2,4],[4,4]],
   keywords: {}
 };
 
@@ -313,8 +313,9 @@ function tokenize(src){
       while(isA(pk())||isD(pk()))adv();
       const lex=src.slice(sp,pos); toks.push({kind:KW[lex]||'ID',lexeme:lex,line:sl,col:sc});
     } else if(isD(c)||(c===46&&isD(pk(1)))){
-      if(c===46)adv(); while(isD(pk()))adv(); let fl=c===46;
-      if(c!==46&&pk()===46){fl=true;adv();while(isD(pk()))adv();}
+      let fl=false;
+      if(c===46){adv();fl=true;while(isD(pk()))adv();}
+      else{while(isD(pk()))adv();if(pk()===46){fl=true;adv();while(isD(pk()))adv();}}
       const e=pk(); if(e===101||e===69){const sv=pos;adv();if(pk()===43||pk()===45)adv();if(isD(pk())){fl=true;while(isD(pk()))adv();}else pos=sv;}
       toks.push({kind:fl?'FLOAT_LIT':'NUM',lexeme:src.slice(sp,pos),line:sl,col:sc});
     } else {

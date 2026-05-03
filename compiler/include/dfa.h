@@ -57,6 +57,7 @@ bool dfa_validate(const DFA *dfa);
 /* lab1 core */
 void dfa_print(const DFA *dfa, FILE *out);
 bool dfa_simulate(const DFA *dfa, const char *input);
+bool dfa_trace(const DFA *dfa, const char *input, FILE *out);
 void dfa_enumerate(const DFA *dfa, int max_len, FILE *out);
 
 /* lab2 bridge: single-step transitions */
