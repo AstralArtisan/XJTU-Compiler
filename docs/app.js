@@ -112,6 +112,16 @@ function getDFA() {
 /* ── DFA: Canvas Rendering ────────────────────────── */
 let currentDFA = null, dfaNodes = [], dfaEdges = [];
 let hlNode = -1, hlEdge = -1;
+let viewX = 0, viewY = 0, viewScale = 1;
+let isDraggingNode = false, dragNode = null;
+let isPanning = false, pointerStart = {x:0,y:0};
+let viewStartX = 0, viewStartY = 0, nodeStartX = 0, nodeStartY = 0;
+let lastPinchDist = 0;
+
+function screenToWorld(sx, sy) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (sx - rect.left - viewX) / viewScale, y: (sy - rect.top - viewY) / viewScale };
+}
 const canvas = document.getElementById('dfa-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -179,6 +189,9 @@ function drawSelfLoop(x,y,r,color,w) {
 function drawDFA() {
   const W=canvas.parentElement.clientWidth, H=canvas.parentElement.clientHeight;
   ctx.clearRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(viewX, viewY);
+  ctx.scale(viewScale, viewScale);
 
   dfaEdges.forEach((e,i)=>{
     const from=getNode(e.from), to=getNode(e.to); if(!from||!to) return;
@@ -221,16 +234,110 @@ function drawDFA() {
     ctx.font='600 12px "JetBrains Mono",monospace'; ctx.fillStyle='#fafafa';
     ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(n.label,n.x,n.y);
   });
+  ctx.restore();
 }
 
 function renderDFA(dfa) {
   currentDFA = dfa; resizeCanvas();
   dfaNodes = layoutNodes(dfa); dfaEdges = buildEdges(dfa);
-  hlNode = -1; hlEdge = -1; drawDFA();
+  hlNode = -1; hlEdge = -1;
+  viewX = 0; viewY = 0; viewScale = 1;
+  drawDFA();
   document.getElementById('canvas-empty').classList.add('hidden');
 }
 
-window.addEventListener('resize',()=>{ if(currentDFA){resizeCanvas();dfaNodes=layoutNodes(currentDFA);drawDFA();} });
+window.addEventListener('resize',()=>{ if(currentDFA){resizeCanvas();dfaNodes=layoutNodes(currentDFA);viewX=0;viewY=0;viewScale=1;drawDFA();} });
+
+/* ── DFA: Canvas Interaction (pan/zoom/drag) ─────── */
+function hitTestNode(ex, ey) {
+  const w = screenToWorld(ex, ey);
+  for (let i = dfaNodes.length - 1; i >= 0; i--) {
+    const n = dfaNodes[i];
+    const dx = w.x - n.x, dy = w.y - n.y;
+    if (dx*dx + dy*dy <= n.r*n.r) return n;
+  }
+  return null;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  const hit = hitTestNode(e.clientX, e.clientY);
+  if (hit) {
+    isDraggingNode = true; dragNode = hit;
+    const w = screenToWorld(e.clientX, e.clientY);
+    nodeStartX = hit.x - w.x; nodeStartY = hit.y - w.y;
+    canvas.style.cursor = 'grabbing';
+  } else {
+    isPanning = true;
+    pointerStart = {x: e.clientX, y: e.clientY};
+    viewStartX = viewX; viewStartY = viewY;
+    canvas.style.cursor = 'grabbing';
+  }
+  canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (isDraggingNode && dragNode) {
+    const w = screenToWorld(e.clientX, e.clientY);
+    dragNode.x = w.x + nodeStartX; dragNode.y = w.y + nodeStartY;
+    drawDFA();
+  } else if (isPanning) {
+    viewX = viewStartX + (e.clientX - pointerStart.x);
+    viewY = viewStartY + (e.clientY - pointerStart.y);
+    drawDFA();
+  } else {
+    const hit = hitTestNode(e.clientX, e.clientY);
+    canvas.style.cursor = hit ? 'pointer' : 'grab';
+  }
+});
+
+canvas.addEventListener('pointerup', e => {
+  isDraggingNode = false; dragNode = null; isPanning = false;
+  canvas.releasePointerCapture(e.pointerId);
+  const hit = hitTestNode(e.clientX, e.clientY);
+  canvas.style.cursor = hit ? 'pointer' : 'grab';
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+  const newScale = Math.max(0.2, Math.min(5, viewScale * factor));
+  viewX = mx - (mx - viewX) * (newScale / viewScale);
+  viewY = my - (my - viewY) * (newScale / viewScale);
+  viewScale = newScale;
+  drawDFA();
+}, {passive: false});
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
+  }
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (lastPinchDist > 0) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.touches[0].clientX + e.touches[1].clientX)/2 - rect.left;
+      const my = (e.touches[0].clientY + e.touches[1].clientY)/2 - rect.top;
+      const factor = dist / lastPinchDist;
+      const newScale = Math.max(0.2, Math.min(5, viewScale * factor));
+      viewX = mx - (mx - viewX) * (newScale / viewScale);
+      viewY = my - (my - viewY) * (newScale / viewScale);
+      viewScale = newScale;
+      drawDFA();
+    }
+    lastPinchDist = dist;
+  }
+}, {passive: false});
 
 /* ── DFA: Simulate & Enumerate ────────────────────── */
 function simDFA(dfa,input) {
