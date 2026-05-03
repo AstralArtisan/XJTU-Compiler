@@ -137,12 +137,74 @@ function layoutNodes(dfa) {
   const count = hi - lo + 1;
   const W = canvas.parentElement.clientWidth, H = canvas.parentElement.clientHeight;
   const cx = W/2, cy = H/2, R = Math.min(W,H) * 0.34;
+  const pad = 40;
   const nodes = [];
   for (let i = 0; i < count; i++) {
     const s = lo + i, angle = -Math.PI/2 + (2*Math.PI*i)/count;
     nodes.push({ id:s, x:cx+R*Math.cos(angle), y:cy+R*Math.sin(angle), r:26,
+      vx:0, vy:0,
       isStart: s===dfa.start, isAccept: dfa.accept.includes(s),
       label: dfa.accept_labels&&dfa.accept_labels[s] ? s+'('+dfa.accept_labels[s]+')' : ''+s });
+  }
+  if (count <= 3) return nodes;
+
+  const adj = new Set();
+  for (let s = lo; s <= hi; s++) {
+    const row = dfa.transitions[s - lo]; if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const t = row[c]; if (s === t) continue;
+      if (dfa.extended && t === 0 && s !== 0) continue;
+      const a = Math.min(s,t), b = Math.max(s,t);
+      adj.add(a + ',' + b);
+    }
+  }
+  const edges = [...adj].map(k => { const p=k.split(','); return [+p[0],+p[1]]; });
+  const idxOf = id => nodes.findIndex(n => n.id === id);
+
+  const idealLen = Math.min(W, H) / Math.max(2, Math.sqrt(count) * 0.9);
+  const iters = Math.min(300, 80 + count * 12);
+
+  for (let iter = 0; iter < iters; iter++) {
+    const temp = 1 - iter / iters;
+    const maxDisp = Math.max(2, temp * idealLen * 0.4);
+
+    for (let i = 0; i < nodes.length; i++) { nodes[i].vx = 0; nodes[i].vy = 0; }
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+        let d = Math.sqrt(dx*dx + dy*dy) || 1;
+        const repulse = (idealLen * idealLen) / d;
+        const fx = (dx/d) * repulse, fy = (dy/d) * repulse;
+        nodes[i].vx += fx; nodes[i].vy += fy;
+        nodes[j].vx -= fx; nodes[j].vy -= fy;
+      }
+    }
+
+    for (const [a,b] of edges) {
+      const ni = idxOf(a), nj = idxOf(b);
+      if (ni < 0 || nj < 0) continue;
+      let dx = nodes[nj].x - nodes[ni].x, dy = nodes[nj].y - nodes[ni].y;
+      let d = Math.sqrt(dx*dx + dy*dy) || 1;
+      const attract = (d * d) / idealLen * 0.15;
+      const fx = (dx/d) * attract, fy = (dy/d) * attract;
+      nodes[ni].vx += fx; nodes[ni].vy += fy;
+      nodes[nj].vx -= fx; nodes[nj].vy -= fy;
+    }
+
+    for (const n of nodes) {
+      const gx = (cx - n.x) * 0.01, gy = (cy - n.y) * 0.01;
+      n.vx += gx; n.vy += gy;
+    }
+
+    for (const n of nodes) {
+      const d = Math.sqrt(n.vx*n.vx + n.vy*n.vy) || 1;
+      const s = Math.min(d, maxDisp);
+      n.x += (n.vx/d) * s;
+      n.y += (n.vy/d) * s;
+      n.x = Math.max(pad, Math.min(W - pad, n.x));
+      n.y = Math.max(pad, Math.min(H - pad, n.y));
+    }
   }
   return nodes;
 }
@@ -165,15 +227,30 @@ function buildEdges(dfa) {
 
 function getNode(id) { return dfaNodes.find(n=>n.id===id); }
 
-function drawArrow(x1,y1,x2,y2,r1,r2,color,w) {
+function drawArrow(x1,y1,x2,y2,r1,r2,color,w,curve) {
   const dx=x2-x1, dy=y2-y1, d=Math.sqrt(dx*dx+dy*dy); if(d<1)return;
   const ux=dx/d, uy=dy/d;
-  ctx.beginPath(); ctx.moveTo(x1+ux*r1,y1+uy*r1); ctx.lineTo(x2-ux*(r2+5),y2-uy*(r2+5));
-  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke();
+  const sx=x1+ux*r1, sy=y1+uy*r1;
   const ex=x2-ux*(r2+5), ey=y2-uy*(r2+5);
-  ctx.beginPath(); ctx.moveTo(ex+ux*9,ey+uy*9);
-  ctx.lineTo(ex-ux*1+uy*4.5,ey-uy*1-ux*4.5);
-  ctx.lineTo(ex-ux*1-uy*4.5,ey-uy*1+ux*4.5);
+  ctx.beginPath();
+  if (curve) {
+    const mx=(sx+ex)/2+(-uy)*curve, my=(sy+ey)/2+(ux)*curve;
+    ctx.moveTo(sx,sy); ctx.quadraticCurveTo(mx,my,ex,ey);
+  } else {
+    ctx.moveTo(sx,sy); ctx.lineTo(ex,ey);
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke();
+  let ax,ay,adx,ady;
+  if (curve) {
+    const t=0.95, mt=1-t;
+    const px=mt*mt*sx+2*mt*t*((sx+ex)/2+(-uy)*curve)+t*t*ex;
+    const py=mt*mt*sy+2*mt*t*((sy+ey)/2+(ux)*curve)+t*t*ey;
+    adx=ex-px; ady=ey-py;
+    const ad=Math.sqrt(adx*adx+ady*ady)||1; adx/=ad; ady/=ad;
+  } else { adx=ux; ady=uy; }
+  ctx.beginPath(); ctx.moveTo(ex+adx*9,ey+ady*9);
+  ctx.lineTo(ex-adx*1+ady*4.5,ey-ady*1-adx*4.5);
+  ctx.lineTo(ex-adx*1-ady*4.5,ey-ady*1+adx*4.5);
   ctx.closePath(); ctx.fillStyle=color; ctx.fill();
 }
 
@@ -202,12 +279,16 @@ function drawDFA() {
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText(e.label,from.x,from.y-from.r-36);
     } else {
-      drawArrow(from.x,from.y,to.x,to.y,from.r,to.r,col,w);
-      const mx=(from.x+to.x)/2, my=(from.y+to.y)/2;
+      const hasReverse = dfaEdges.some(o=>o.from===e.to&&o.to===e.from&&o.from!==o.to);
+      const curve = hasReverse ? (e.from < e.to ? 30 : -30) : 0;
+      drawArrow(from.x,from.y,to.x,to.y,from.r,to.r,col,w,curve);
       const dx=to.x-from.x, dy=to.y-from.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+      const nx=-dy/d, ny=dx/d;
+      const labelOff = curve ? curve*0.6 : 14;
+      const mx=(from.x+to.x)/2+nx*labelOff, my=(from.y+to.y)/2+ny*labelOff;
       ctx.font='500 10px "JetBrains Mono",monospace'; ctx.fillStyle=isH?'#c4b5fd':'#71717a';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(e.label, mx+(-dy/d)*14, my+(dx/d)*14);
+      ctx.fillText(e.label, mx, my);
     }
   });
 
