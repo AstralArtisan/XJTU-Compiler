@@ -37,11 +37,35 @@ const SAMPLE_DFA = {
 
 const SAMPLE_SOURCE = `int gcd(int a, int b) {
     while (b != 0) {
-        int t = b;
-        b = a - (a / b) * b;
+        int t;
+        t = b;
+        b = a - a / b * b;
         a = t;
     }
     return a;
+}
+
+void main() {
+    int x;
+    int y;
+    float pi;
+    pi = 3.14;
+    pi = .5;
+    pi = 1e-3;
+    pi = 12.3E+4;
+    x = 0;
+    y = 10;
+    while (x <= y) {
+        if (x == y) {
+            print(x);
+        } else {
+            x += 1;
+        }
+        x++;
+    }
+    if (x > 0 && y >= 0 || !x) {
+        return;
+    }
 }`;
 
 /* ── DFA: Form / JSON toggle ──────────────────────── */
@@ -224,12 +248,12 @@ function simDFA(dfa,input) {
 function enumDFA(dfa,maxLen) {
   const lo=dfa.extended?0:1, sym=dfa.extended?(dfa.classes||[]):(dfa.alphabet||'').split('');
   const res=[];
-  (function f(s,d,b){
-    if(dfa.accept.includes(s)) res.push(b||'ε');
-    if(d>=maxLen) return;
+  function f(s,d,targetLen,b){
+    if(d===targetLen){if(dfa.accept.includes(s)) res.push(b||'ε'); return;}
     const row=dfa.transitions[s-lo]; if(!row) return;
-    for(let c=0;c<sym.length;c++){const n=row[c]; if(dfa.extended&&n===0&&s!==0) continue; f(n,d+1,b+sym[c]);}
-  })(dfa.start,0,'');
+    for(let c=0;c<sym.length;c++){const n=row[c]; if(dfa.extended&&n===0&&s!==0) continue; f(n,d+1,targetLen,b+sym[c]);}
+  }
+  for(let len=0;len<=maxLen;len++) f(dfa.start,0,len,'');
   return res;
 }
 
@@ -290,7 +314,7 @@ document.getElementById('btn-enumerate').addEventListener('click',()=>{
 });
 
 /* ── Frontend Tokenizer ───────────────────────────── */
-const KW={int:'INT',float:'FLOAT',void:'VOID','if':'IF','else':'ELSE','while':'WHILE','return':'RETURN',input:'INPUT',print:'PRINT'};
+const KW={int:'INT',float:'FLOAT_KW',void:'VOID','if':'IF','else':'ELSE','while':'WHILE','return':'RETURN',input:'INPUT',print:'PRINT'};
 
 function tokenize(src){
   const toks=[]; let pos=0,line=1,col=1;
@@ -341,7 +365,7 @@ function tokenize(src){
 }
 
 /* ── Scanner UI ───────────────────────────────────── */
-const TC={INT:'tk-keyword',FLOAT:'tk-keyword',VOID:'tk-keyword',IF:'tk-keyword',ELSE:'tk-keyword',WHILE:'tk-keyword',RETURN:'tk-keyword',INPUT:'tk-keyword',PRINT:'tk-keyword',ID:'tk-id',NUM:'tk-num',FLOAT_LIT:'tk-float',ADD:'tk-op',SUB:'tk-op',MUL:'tk-op',DIV:'tk-op',LT:'tk-op',LE:'tk-op',EQ:'tk-op',GT:'tk-op',GE:'tk-op',NE:'tk-op',AND:'tk-op',OR:'tk-op',NOT:'tk-op',ASG:'tk-op',AAS:'tk-op',AAA:'tk-op',LPAR:'tk-delim',RPAR:'tk-delim',LBK:'tk-delim',RBK:'tk-delim',LBR:'tk-delim',RBR:'tk-delim',CMA:'tk-delim',COL:'tk-delim',SCO:'tk-delim',DOT:'tk-delim',ERR:'tk-err'};
+const TC={INT:'tk-keyword',FLOAT_KW:'tk-keyword',VOID:'tk-keyword',IF:'tk-keyword',ELSE:'tk-keyword',WHILE:'tk-keyword',RETURN:'tk-keyword',INPUT:'tk-keyword',PRINT:'tk-keyword',ID:'tk-id',NUM:'tk-num',FLOAT_LIT:'tk-float',ADD:'tk-op',SUB:'tk-op',MUL:'tk-op',DIV:'tk-op',LT:'tk-op',LE:'tk-op',EQ:'tk-op',GT:'tk-op',GE:'tk-op',NE:'tk-op',AND:'tk-op',OR:'tk-op',NOT:'tk-op',ASG:'tk-op',AAS:'tk-op',AAA:'tk-op',LPAR:'tk-delim',RPAR:'tk-delim',LBK:'tk-delim',RBK:'tk-delim',LBR:'tk-delim',RBR:'tk-delim',CMA:'tk-delim',COL:'tk-delim',SCO:'tk-delim',DOT:'tk-delim',ERR:'tk-err'};
 
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 

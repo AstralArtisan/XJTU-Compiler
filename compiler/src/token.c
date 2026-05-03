@@ -4,10 +4,10 @@
 
 static const char *TOKEN_NAMES[] = {
     [TK_ERR] = "ERR", [TK_EOF] = "EOF",
-    [TK_INT] = "INT", [TK_FLOAT_KW] = "FLOAT", [TK_VOID] = "VOID",
+    [TK_INT] = "INT", [TK_FLOAT_KW] = "FLOAT_KW", [TK_VOID] = "VOID",
     [TK_IF] = "IF", [TK_ELSE] = "ELSE", [TK_WHILE] = "WHILE",
     [TK_RETURN] = "RETURN", [TK_INPUT] = "INPUT", [TK_PRINT] = "PRINT",
-    [TK_ID] = "ID", [TK_NUM] = "NUM", [TK_FLOAT_LIT] = "FLOAT",
+    [TK_ID] = "ID", [TK_NUM] = "NUM", [TK_FLOAT_LIT] = "FLOAT_LIT",
     [TK_ADD] = "ADD", [TK_SUB] = "SUB", [TK_MUL] = "MUL", [TK_DIV] = "DIV",
     [TK_LT] = "LT", [TK_LE] = "LE", [TK_EQ] = "EQ",
     [TK_GT] = "GT", [TK_GE] = "GE", [TK_NE] = "NE",

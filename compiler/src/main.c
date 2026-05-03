@@ -311,9 +311,13 @@ static int cmd_dfa(int argc, char **argv) {
         printf("\nMax length to enumerate: ");
         int n;
         if (scanf("%d", &n) == 1) dfa_enumerate(&dfa, n, stdout);
+        while (getchar() != '\n') {}
         printf("\nEnter string to test (empty line to quit): ");
         char buf[256];
-        while (scanf("%255s", buf) == 1) {
+        while (fgets(buf, sizeof(buf), stdin)) {
+            size_t len = strlen(buf);
+            if (len > 0 && buf[len - 1] == '\n') buf[--len] = '\0';
+            if (len == 0) break;
             dfa_trace(&dfa, buf, stdout);
             printf("Enter string to test (empty line to quit): ");
         }

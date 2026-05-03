@@ -49,7 +49,7 @@ static void ts_skip_ws_and_comments(TableScanner *ts) {
 static TokenKind label_to_kind(const char *label) {
     if (!label) return TK_ERR;
     static const struct { const char *name; TokenKind kind; } MAP[] = {
-        {"ID",TK_ID},{"NUM",TK_NUM},{"FLOAT",TK_FLOAT_LIT},
+        {"ID",TK_ID},{"NUM",TK_NUM},{"FLOAT_LIT",TK_FLOAT_LIT},
         {"ADD",TK_ADD},{"SUB",TK_SUB},{"MUL",TK_MUL},{"DIV",TK_DIV},
         {"LT",TK_LT},{"LE",TK_LE},{"EQ",TK_EQ},{"GT",TK_GT},{"GE",TK_GE},{"NE",TK_NE},
         {"AND",TK_AND},{"OR",TK_OR},{"NOT",TK_NOT},
