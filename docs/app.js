@@ -3,7 +3,10 @@
    ═══════════════════════════════════════════════════ */
 
 /* ── API Config ───────────────────────────────────── */
-const API_URL = localStorage.getItem('api_url') || 'http://igw.netperf.cc:8080';
+const DEFAULT_API_URL = 'https://lines-eternal-ray-fighting.trycloudflare.com';
+const LEGACY_API_URL = 'http://igw.netperf.cc:8080';
+const savedApiUrl = localStorage.getItem('api_url');
+const API_URL = savedApiUrl && savedApiUrl !== LEGACY_API_URL ? savedApiUrl : DEFAULT_API_URL;
 let apiAvailable = false;
 
 async function checkAPI() {
