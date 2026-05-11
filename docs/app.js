@@ -652,6 +652,217 @@ const AMBIG_GRAMMAR = `# 二义表达式：制造移进-归约冲突
 E -> E ADD E | E MUL E | LPAR E RPAR | ID
 `;
 
+function lr0ParseGrammar(text) {
+  const symbols = new Map();
+  const symbolList = [];
+  const terminalDecls = new Set();
+  let startName = '';
+  let seenRule = false;
+  const productions = [];
+
+  const intern = (name, kind) => {
+    if (symbols.has(name)) {
+      const sym = symbolList[symbols.get(name)];
+      if (kind === 'nonterm' && sym.kind === 'term') sym.kind = 'nonterm';
+      return sym;
+    }
+    const sym = { id: symbolList.length, name, kind };
+    symbols.set(name, sym.id);
+    symbolList.push(sym);
+    return sym;
+  };
+
+  intern('$', 'end');
+  intern('epsilon', 'eps');
+
+  const stripComment = line => line.replace(/#.*/, '').trim();
+  const isEps = tok => tok === 'epsilon' || tok === 'EPSILON' || tok === 'ε';
+  const parseRhs = rhs => {
+    const out = [];
+    rhs.trim().split(/\s+/).filter(Boolean).forEach(tok => {
+      if (isEps(tok)) return;
+      let kind = 'term';
+      if (terminalDecls.size > 0) {
+        kind = terminalDecls.has(tok) ? 'term' : 'nonterm';
+      } else if (/^[A-Z]$/.test(tok)) {
+        kind = 'nonterm';
+      }
+      out.push(intern(tok, kind).id);
+    });
+    return out;
+  };
+
+  text.split(/\r?\n/).forEach(raw => {
+    const line = stripComment(raw);
+    if (!line) return;
+
+    if (line.startsWith('%') && !seenRule) {
+      const parts = line.slice(1).trim().split(/\s+/).filter(Boolean);
+      const name = parts.shift();
+      if (name === 'start') {
+        startName = parts[0] || '';
+      } else if (name === 'terminals') {
+        parts.forEach(t => terminalDecls.add(t));
+      }
+      return;
+    }
+
+    const m = line.match(/^(.*?)\s*(?:->|::=|→)\s*(.*)$/);
+    if (!m) throw new Error('no arrow in rule: ' + line);
+    seenRule = true;
+    const lhsName = m[1].trim();
+    if (!lhsName) throw new Error('empty lhs in rule: ' + line);
+    const lhs = intern(lhsName, 'nonterm').id;
+    if (!startName) startName = lhsName;
+
+    m[2].split('|').forEach(alt => {
+      productions.push({ lhs, rhs: parseRhs(alt) });
+    });
+  });
+
+  if (productions.length === 0) throw new Error('no productions');
+  const start = symbols.get(startName);
+  if (start === undefined) throw new Error('start symbol not in grammar: ' + startName);
+
+  productions.forEach(p => { symbolList[p.lhs].kind = 'nonterm'; });
+  const augName = startName + "'";
+  const aug = intern(augName, 'nonterm').id;
+  productions.unshift({ lhs: aug, rhs: [start] });
+
+  return {
+    symbols: symbolList,
+    productions,
+    augmentedStart: aug
+  };
+}
+
+function lr0ItemKey(item) { return item.prod + ':' + item.dot; }
+
+function lr0SortItems(items) {
+  items.sort((a, b) => a.prod - b.prod || a.dot - b.dot);
+  return items;
+}
+
+function lr0Closure(grammar, seed) {
+  const items = seed.map(it => ({ prod: it.prod, dot: it.dot }));
+  const seen = new Set(items.map(lr0ItemKey));
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const prod = grammar.productions[it.prod];
+      const next = prod.rhs[it.dot];
+      if (next === undefined || grammar.symbols[next].kind !== 'nonterm') continue;
+      grammar.productions.forEach((p, prodId) => {
+        if (p.lhs !== next) return;
+        const candidate = { prod: prodId, dot: 0 };
+        const key = lr0ItemKey(candidate);
+        if (!seen.has(key)) {
+          seen.add(key);
+          items.push(candidate);
+          changed = true;
+        }
+      });
+    }
+  }
+
+  return lr0SortItems(items);
+}
+
+function lr0GotoLocal(grammar, items, sym) {
+  const moved = [];
+  items.forEach(it => {
+    const prod = grammar.productions[it.prod];
+    if (prod.rhs[it.dot] === sym) moved.push({ prod: it.prod, dot: it.dot + 1 });
+  });
+  return moved.length ? lr0Closure(grammar, moved) : [];
+}
+
+function lr0ItemsEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].prod !== b[i].prod || a[i].dot !== b[i].dot) return false;
+  }
+  return true;
+}
+
+function lr0BuildLocal(grammarText) {
+  const grammar = lr0ParseGrammar(grammarText);
+  const states = [lr0Closure(grammar, [{ prod: 0, dot: 0 }])];
+  const edges = [];
+  const work = [0];
+
+  while (work.length) {
+    const from = work.shift();
+    const seenSymbols = [];
+    states[from].forEach(it => {
+      const sym = grammar.productions[it.prod].rhs[it.dot];
+      if (sym !== undefined && !seenSymbols.includes(sym)) seenSymbols.push(sym);
+    });
+
+    seenSymbols.forEach(sym => {
+      const nextItems = lr0GotoLocal(grammar, states[from], sym);
+      if (!nextItems.length) return;
+      let to = states.findIndex(s => lr0ItemsEqual(s, nextItems));
+      if (to < 0) {
+        to = states.length;
+        states.push(nextItems);
+        work.push(to);
+      }
+      edges.push({ from, sym: grammar.symbols[sym].name, to });
+    });
+  }
+
+  const conflicts = [];
+  states.forEach((items, stateId) => {
+    const reduceIdx = [];
+    let hasShift = false;
+    let shiftSym = -1;
+
+    items.forEach((it, itemIdx) => {
+      const prod = grammar.productions[it.prod];
+      if (it.dot >= prod.rhs.length) {
+        reduceIdx.push(itemIdx);
+      } else {
+        const sym = prod.rhs[it.dot];
+        if (grammar.symbols[sym].kind === 'term') {
+          hasShift = true;
+          if (shiftSym < 0) shiftSym = sym;
+        }
+      }
+    });
+
+    const onlyAcceptReduce = reduceIdx.length === 1 &&
+      grammar.productions[items[reduceIdx[0]].prod].lhs === grammar.augmentedStart;
+    const shiftReduce = reduceIdx.length >= 1 && hasShift && !onlyAcceptReduce;
+    const reduceReduce = reduceIdx.length >= 2;
+    if (!shiftReduce && !reduceReduce) return;
+
+    const conflict = {
+      state: stateId,
+      kind: reduceReduce ? 'reduce-reduce' : 'shift-reduce',
+      reduce_items: reduceIdx.map(i => ({ prod: items[i].prod, dot: items[i].dot }))
+    };
+    if (shiftReduce && shiftSym >= 0) conflict.on = grammar.symbols[shiftSym].name;
+    conflicts.push(conflict);
+  });
+
+  return {
+    is_lr0: conflicts.length === 0,
+    symbols: grammar.symbols.map(s => ({ id: s.id, name: s.name, kind: s.kind })),
+    productions: grammar.productions.map((p, id) => ({
+      id,
+      lhs: grammar.symbols[p.lhs].name,
+      rhs: p.rhs.map(sym => grammar.symbols[sym].name)
+    })),
+    states: states.map((items, id) => ({ id, items })),
+    edges,
+    conflicts
+  };
+}
+
 const lr0Canvas = document.getElementById('lr0-canvas');
 const lr0Ctx    = lr0Canvas.getContext('2d');
 let lr0Data = null;
@@ -919,7 +1130,7 @@ function lr0ShowConflicts() {
   });
 }
 
-function lr0Render(data) {
+function lr0Render(data, source) {
   lr0Data = data;
   lr0ConflictStates = new Set(data.conflicts.map(c => c.state));
   lr0AcceptStates = new Set();
@@ -939,7 +1150,8 @@ function lr0Render(data) {
   lr0ShowState(-1);
   lr0ShowConflicts();
   const status = document.getElementById('lr0-status');
-  status.textContent = data.states.length + ' states · ' + data.edges.length + ' edges';
+  status.textContent = data.states.length + ' states · ' + data.edges.length + ' edges' +
+    (source ? ' · ' + source : '');
   status.className = 'stats-badge ' + (data.is_lr0 ? 'ok' : 'err');
 }
 
@@ -1029,34 +1241,28 @@ async function lr0Build(grammar) {
   const status = document.getElementById('lr0-status');
   status.textContent = 'Building...';
   status.className = 'stats-badge';
-  if (!apiAvailable) {
-    status.textContent = 'API offline';
-    status.className = 'stats-badge err';
-    document.getElementById('lr0-conflicts').innerHTML =
-      '<p class="lr0-err">Backend API is offline. LR(0) build needs the compiler binary running on a server.</p>';
-    return;
-  }
   try {
-    const r = await fetch(API_URL + '/api/lr0', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ grammar }),
-      signal: AbortSignal.timeout(API_SCAN_TIMEOUT_MS)
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      status.textContent = 'Error';
-      status.className = 'stats-badge err';
-      document.getElementById('lr0-conflicts').innerHTML =
-        '<p class="lr0-err">'+(data.error || 'build failed')+'</p>';
-      return;
+    if (apiAvailable) {
+      try {
+        const r = await fetch(API_URL + '/api/lr0', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ grammar }),
+          signal: AbortSignal.timeout(API_SCAN_TIMEOUT_MS)
+        });
+        if (r.ok) {
+          lr0Render(await r.json(), 'API');
+          return;
+        }
+      } catch (_) {}
     }
-    lr0Render(data);
+
+    lr0Render(lr0BuildLocal(grammar), 'Local');
   } catch (err) {
-    status.textContent = 'Network error';
+    status.textContent = 'Error';
     status.className = 'stats-badge err';
     document.getElementById('lr0-conflicts').innerHTML =
-      '<p class="lr0-err">Network error: '+err.message+'</p>';
+      '<p class="lr0-err">'+esc(err.message || String(err))+'</p>';
   }
 }
 
