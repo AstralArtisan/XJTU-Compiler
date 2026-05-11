@@ -26,7 +26,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 PORT = 8080
 COMPILER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'compiler')
 ALLOWED_DFA_FILES = {'data/simple.dfa', 'data/lexer.dfa', 'data/stmt.dfa', 'tests/dfa/lab1_basic.dfa'}
-ALLOWED_GRAMMAR_FILES = {'data/expr.grammar', 'data/expr_ambig.grammar', 'data/eps.grammar'}
+ALLOWED_GRAMMAR_FILES = {
+    'data/expr.grammar',
+    'data/expr_ambig.grammar',
+    'data/eps.grammar',
+    'data/simple_lr0.grammar',
+}
 
 CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',

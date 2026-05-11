@@ -1,4 +1,4 @@
-# PPT 示例：表达式文法
+# 表达式文法
 # 终结符直接对接 lab2 token 名（ADD/MUL/LPAR/RPAR/ID）
 %start E
 %terminals ADD MUL LPAR RPAR ID

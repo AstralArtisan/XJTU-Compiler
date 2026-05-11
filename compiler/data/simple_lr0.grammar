@@ -1,0 +1,7 @@
+# 简单 LR(0) 成功案例：非空 ID 序列，以分号结束
+# 终结符沿用 lab2 token 名，SCO 表示分号
+%start S
+%terminals ID SCO
+
+S -> ID Rest
+Rest -> ID Rest | SCO
