@@ -9,6 +9,7 @@ SERVER="wuji@igw.netperf.cc"
 PORT=2123
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_COMPILER_DIR="compiler"
+PUBLIC_API="${PUBLIC_API:-https://lines-eternal-ray-fighting.trycloudflare.com}"
 SSH_BIN="${SSH_BIN:-ssh}"
 SCP_BIN="${SCP_BIN:-scp}"
 
@@ -27,7 +28,7 @@ echo "=== 2. 上传 compiler/ 内容到服务器 ==="
 )
 
 echo "=== 3. 编译 + 启动服务 ==="
-"$SSH_BIN" -p "$PORT" "$SERVER" << 'EOF'
+"$SSH_BIN" -p "$PORT" "$SERVER" "PUBLIC_API='$PUBLIC_API' bash -s" << 'EOF'
 cd ~/compiler
 
 # 编译
@@ -45,7 +46,8 @@ sleep 2
 # 验证
 if curl -s http://localhost:8080/api/health | grep -q '"ok"'; then
     echo "=== 服务启动成功 ==="
-    echo "API: http://igw.netperf.cc:8080/api/health"
+    echo "API(local): http://localhost:8080/api/health"
+    echo "API(public): $PUBLIC_API/api/health"
 else
     echo "=== 服务启动失败，查看日志 ==="
     tail -20 server.log
