@@ -253,6 +253,65 @@ body {
 }
 .stats-badge .n { color: var(--blue); font-weight: 600; }
 .stats-badge .err { color: var(--red); font-weight: 600; }
+.stats-badge.ok  { color: var(--green); }
+.stats-badge.err { color: var(--red); }
+
+/* ── LR(0) Builder ────────────────────────────────── */
+.muted { color: var(--text-3); font-size: .9rem; margin: 0; }
+
+#lr0-detail h4 {
+  margin: 0 0 .6rem; font-size: .95rem; font-weight: 600;
+  display: flex; align-items: center; gap: .5rem;
+}
+.lr0-item-list {
+  list-style: none; padding: 0; margin: 0 0 .6rem;
+}
+.lr0-item-list li {
+  padding: .2rem 0; font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+}
+.lr0-item-list code {
+  background: transparent; color: var(--text-1); padding: 0;
+}
+
+.lr0-goto-title {
+  margin: .6rem 0 .2rem; font-size: .85rem; color: var(--text-2); font-weight: 600;
+}
+.lr0-goto-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.lr0-goto-list li {
+  padding: .15rem 0; font-family: 'JetBrains Mono', monospace; font-size: .82rem;
+}
+
+.lr0-badge {
+  display: inline-block; font-size: .7rem; padding: .12rem .45rem;
+  border-radius: 4px; font-weight: 600; letter-spacing: .02em;
+}
+.lr0-badge-err { background: var(--red-bg); color: var(--red); }
+.lr0-badge-ok  { background: var(--green-bg); color: var(--green); }
+
+.lr0-ok  { color: var(--green); margin: 0; }
+.lr0-err { color: var(--red);   margin: 0 0 .5rem; font-weight: 600; }
+
+.lr0-conflict-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.lr0-conflict-list > li {
+  padding: .4rem 0; border-bottom: 1px solid var(--bg-3); font-size: .85rem;
+}
+.lr0-conflict-list > li:last-child { border-bottom: none; }
+.lr0-conflict-list a {
+  color: var(--blue); text-decoration: none; font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+.lr0-conflict-list a:hover { text-decoration: underline; }
+.lr0-conflict-list ul {
+  list-style: none; padding: .25rem 0 0 1rem; margin: 0;
+}
+.lr0-conflict-list ul li {
+  font-family: 'JetBrains Mono', monospace; font-size: .78rem; color: var(--text-2);
+  padding: .1rem 0;
+}
 
 /* ── Scrollbar ───────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }

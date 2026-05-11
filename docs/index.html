@@ -21,6 +21,7 @@
       <div class="nav-tabs" role="tablist">
         <button class="nav-tab active" data-view="dfa" role="tab" aria-selected="true">DFA Explorer</button>
         <button class="nav-tab" data-view="scanner" role="tab" aria-selected="false">Lexical Analyzer</button>
+        <button class="nav-tab" data-view="lr0" role="tab" aria-selected="false">LR(0) Builder</button>
       </div>
     </div>
     <a href="https://github.com/AstralArtisan/XJTU-Compiler" class="nav-github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -176,6 +177,58 @@
           <p>Token stream will appear here after scanning</p>
         </div>
       </section>
+    </div>
+  </main>
+
+  <!-- ═══════ LR(0) Builder ═══════ -->
+  <main id="view-lr0" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>State Transition Graph</h2>
+        <p class="subtitle">Define a context-free grammar below; the canonical collection of LR(0) items is rendered as a state diagram.</p>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="lr0-canvas"></canvas>
+        <div id="lr0-canvas-empty" class="canvas-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <p>Define a grammar and click <strong>Build LR(0)</strong> to see the state graph</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid-2-1">
+      <section class="section">
+        <div class="section-header">
+          <h2>Grammar Definition</h2>
+          <span id="lr0-status" class="stats-badge" aria-live="polite"></span>
+        </div>
+        <div class="field">
+          <label for="lr0-grammar">Productions</label>
+          <textarea id="lr0-grammar" class="code-input code-input-lg" rows="10" spellcheck="false" aria-label="Grammar"
+                    placeholder="# %start E&#10;# %terminals ADD MUL LPAR RPAR ID&#10;E -> E ADD T | T&#10;T -> T MUL F | F&#10;F -> LPAR E RPAR | ID"></textarea>
+          <span class="field-hint">One production per line. Use <code>-&gt;</code>, <code>|</code> for alternatives, <code>epsilon</code> for ε. Optional <code>%start</code> and <code>%terminals</code> directives.</span>
+        </div>
+        <div class="action-bar">
+          <button id="btn-lr0-sample" class="btn btn-secondary">Load Sample</button>
+          <button id="btn-lr0-ambig" class="btn btn-secondary">Load Ambiguous</button>
+          <button id="btn-lr0-build" class="btn btn-primary">Build LR(0)</button>
+        </div>
+      </section>
+
+      <div class="sidebar-stack">
+        <section class="section">
+          <h3>State Detail</h3>
+          <div id="lr0-detail" class="result-box" aria-live="polite">
+            <p class="muted">Click a state in the graph to inspect its closure.</p>
+          </div>
+        </section>
+        <section class="section">
+          <h3>Conflicts</h3>
+          <div id="lr0-conflicts" class="result-box" aria-live="polite">
+            <p class="muted">No grammar built yet.</p>
+          </div>
+        </section>
+      </div>
     </div>
   </main>
 

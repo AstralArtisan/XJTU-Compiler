@@ -23,7 +23,7 @@ echo "=== 1. 准备远端目录 ==="
 echo "=== 2. 上传 compiler/ 内容到服务器 ==="
 (
     cd "$SCRIPT_DIR"
-    "$SCP_BIN" -P "$PORT" -r Makefile server.py deploy.sh data include src tests "$SERVER:$REMOTE_COMPILER_DIR/"
+    "$SCP_BIN" -P "$PORT" -r Makefile server.py deploy.sh data include src tests tools "$SERVER:$REMOTE_COMPILER_DIR/"
 )
 
 echo "=== 3. 编译 + 启动服务 ==="

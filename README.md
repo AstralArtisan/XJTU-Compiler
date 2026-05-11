@@ -92,7 +92,7 @@ make clean && make
 
 ## 在线可视化
 
-访问 [https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/)，包含两个视图：
+访问 [https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/)，包含三个视图：
 
 ### DFA Explorer
 
@@ -108,6 +108,12 @@ make clean && make
 - Token 流以表格展示（类型、词素、行:列），不同类型用颜色区分
 - 源码高亮显示各 token 类型
 - 可上传 `./compiler scan --format=json` 生成的 JSON 文件查看后端分析结果
+
+### LR(0) Builder
+
+- 输入上下文无关文法，调用后端 C 程序构造 LR(0) 项目集规范族
+- Canvas 展示项目集状态图，点击状态可查看 Closure 和对应 Goto
+- 冲突状态用红色标记，区分 LR(0) 文法与存在移进-归约/归约-归约冲突的文法
 
 ## DFA 文件格式
 
