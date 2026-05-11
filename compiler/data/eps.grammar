@@ -1,0 +1,6 @@
+# 带 epsilon 的列表文法：验证 ε 路径下的 Closure
+%start L
+%terminals COMMA ID
+
+L -> L COMMA E | E | epsilon
+E -> ID

@@ -2,6 +2,8 @@
 #include "scanner.h"
 #include "table_scanner.h"
 #include "dfa.h"
+#include "grammar.h"
+#include "lr0.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -325,13 +327,89 @@ static int cmd_dfa(int argc, char **argv) {
     return 0;
 }
 
+static int cmd_lr0(int argc, char **argv) {
+    const char *grammar_path = NULL;
+    const char *out_path     = NULL;
+    const char *show         = "all";
+    bool json = false;
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+            out_path = argv[++i];
+        } else if (strcmp(argv[i], "--format=json") == 0) {
+            json = true;
+        } else if (strncmp(argv[i], "--show=", 7) == 0) {
+            show = argv[i] + 7;
+        } else if (argv[i][0] != '-') {
+            grammar_path = argv[i];
+        }
+    }
+
+    if (!grammar_path) {
+        fprintf(stderr, "usage: compiler lr0 <grammar_file> "
+                        "[--show=closure|goto|conflicts|productions|all] "
+                        "[--format=json] [-o OUT]\n");
+        return 1;
+    }
+
+    Grammar g;
+    grammar_init(&g);
+    if (!grammar_load(&g, grammar_path)) return 1;
+    grammar_augment(&g);
+
+    FILE *out = stdout;
+    if (out_path) {
+        out = fopen(out_path, "w");
+        if (!out) { perror(out_path); return 1; }
+    }
+
+    if (strcmp(show, "productions") == 0) {
+        grammar_print(&g, out);
+        if (out != stdout) fclose(out);
+        return 0;
+    }
+
+    Lr0Collection c;
+    lr0_init(&c, &g);
+    if (!lr0_build(&c)) {
+        if (out != stdout) fclose(out);
+        return 1;
+    }
+
+    if (json) {
+        lr0_to_json(&c, out);
+    } else if (strcmp(show, "closure") == 0) {
+        for (int s = 0; s < c.state_count; s++) {
+            fprintf(out, "State I%d:\n", s);
+            lr0_print_set(&g, &c.states[s], out);
+            fputc('\n', out);
+        }
+    } else if (strcmp(show, "goto") == 0) {
+        fprintf(out, "Goto:\n");
+        for (int e = 0; e < c.edge_count; e++) {
+            fprintf(out, "  I%d --%s--> I%d\n",
+                    c.edges[e].from,
+                    grammar_symbol_name(&g, c.edges[e].on_symbol),
+                    c.edges[e].to);
+        }
+    } else if (strcmp(show, "conflicts") == 0) {
+        lr0_print_conflicts(&c, out);
+    } else {
+        lr0_print(&c, out);
+    }
+
+    if (out != stdout) fclose(out);
+    return c.is_lr0 ? 0 : 0; /* 冲突不视为进程错误，由调用方按 conflicts 段判断 */
+}
+
 static void print_usage(const char *argv0) {
     fprintf(stderr,
         "usage:\n"
         "  %s dfa <file.dfa> [--enumerate N] [--test STR] [--trace] [--format=json]\n"
         "  %s scan [-f IN [-o OUT]] [--impl=table|--impl=hand] [--table DFA] [--compare] [--format=json]\n"
+        "  %s lr0 <file.grammar> [--show=closure|goto|conflicts|productions|all] [--format=json] [-o OUT]\n"
         "  %s [--stage=scan] [-f IN [-o OUT]]   (legacy mode)\n",
-        argv0, argv0, argv0);
+        argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -339,6 +417,7 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "dfa") == 0) return cmd_dfa(argc - 2, argv + 2);
     if (strcmp(argv[1], "scan") == 0) return cmd_scan(argc - 2, argv + 2);
+    if (strcmp(argv[1], "lr0") == 0) return cmd_lr0(argc - 2, argv + 2);
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage(argv[0]);

@@ -2,7 +2,8 @@ CC := gcc
 CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Iinclude
 
 TARGET := compiler
-SRC := src/token.c src/scanner.c src/dfa.c src/table_scanner.c src/main.c
+SRC := src/token.c src/scanner.c src/dfa.c src/table_scanner.c \
+       src/grammar.c src/lr0.c src/main.c
 OBJ := $(SRC:.c=.o)
 
 .PHONY: all clean test deploy-web check-web
@@ -31,6 +32,10 @@ test: $(TARGET)
 	@echo "=== dfa trace reject ===" && ./$(TARGET) dfa data/simple.dfa --test aba --trace || true && echo
 	@echo "=== dfa json ===" && ./$(TARGET) dfa data/simple.dfa --format=json && echo
 	@echo "=== scan json ===" && ./$(TARGET) scan -f tests/scan/sample.c --format=json | head -5
+	@echo "=== lr0 expr (PPT example) ===" && ./$(TARGET) lr0 data/expr.grammar | head -30 && echo
+	@echo "=== lr0 conflicts ===" && ./$(TARGET) lr0 data/expr_ambig.grammar --show=conflicts && echo
+	@echo "=== lr0 epsilon ===" && ./$(TARGET) lr0 data/eps.grammar --show=closure && echo
+	@echo "=== lr0 json ===" && ./$(TARGET) lr0 data/expr.grammar --format=json | python -m json.tool > /dev/null && echo "JSON OK"
 
 deploy-web:
 	cp ../web/index.html ../web/style.css ../web/app.js ../docs/

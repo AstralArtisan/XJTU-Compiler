@@ -74,6 +74,22 @@ make clean && make
 ./compiler scan -f input.c -o tokens.out
 ```
 
+### LR(0) 项目集规范族 (Lab3)
+
+```bash
+# 构造规范族，打印所有项目集 + Goto + 冲突
+./compiler lr0 data/expr.grammar
+
+# 仅打印闭包 / Goto / 冲突 / 增广产生式
+./compiler lr0 data/expr.grammar --show=closure
+./compiler lr0 data/expr.grammar --show=goto
+./compiler lr0 data/expr_ambig.grammar --show=conflicts
+./compiler lr0 data/expr.grammar --show=productions
+
+# JSON 输出（供前端/SLR 后续消费）
+./compiler lr0 data/expr.grammar --format=json
+```
+
 ## 在线可视化
 
 访问 [https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/)，包含两个视图：
@@ -158,7 +174,7 @@ END
 |------|------|------|
 | Lab1 | DFA 引擎 | ✅ |
 | Lab2 | 词法分析器（手写 + 表驱动） | ✅ |
-| Lab3 | LR(0) 项目集 | 🔲 |
+| Lab3 | LR(0) 项目集规范族（含前端可视化） | ✅ |
 | Lab4 | SLR(1) 分析表 | 🔲 |
 | Lab5 | 语义分析 | 🔲 |
 | Lab6 | 中间代码生成 | 🔲 |

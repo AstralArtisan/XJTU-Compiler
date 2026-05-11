@@ -1,0 +1,5 @@
+# 二义表达式文法：去掉优先级和结合性，制造移进-归约冲突
+%start E
+%terminals ADD MUL LPAR RPAR ID
+
+E -> E ADD E | E MUL E | LPAR E RPAR | ID
