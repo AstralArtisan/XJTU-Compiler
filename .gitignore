@@ -21,6 +21,10 @@ AGENTS.md
 web.md
 web/
 
+# Server/deploy scripts (kept local, not in GitHub)
+compiler/server.py
+compiler/deploy.sh
+
 # Lab directories (local only, contain PPT/reports/personal info)
 lab*/
 
