@@ -11,6 +11,8 @@ Endpoints:
     POST /api/dfa    { "action": "json",       "dfa_file": "data/simple.dfa" }
     POST /api/lr0    { "grammar": "E -> ..." }                   inline grammar text
     POST /api/lr0    { "grammar_file": "data/expr.grammar" }     preset file
+    POST /api/slr    { "grammar": "E -> ..." }                   SLR(1) ACTION/GOTO + FIRST/FOLLOW
+    POST /api/slr    { "grammar_file": "data/expr.grammar" }
     GET  /api/health
 
 All responses are JSON. CORS enabled for GitHub Pages.
@@ -31,6 +33,8 @@ ALLOWED_GRAMMAR_FILES = {
     'data/expr_ambig.grammar',
     'data/eps.grammar',
     'data/simple_lr0.grammar',
+    'data/dangling_if.grammar',
+    'data/slr_demo.grammar',
 }
 
 CORS_HEADERS = {
@@ -96,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_dfa(body)
         elif self.path == '/api/lr0':
             self._handle_lr0(body)
+        elif self.path == '/api/slr':
+            self._handle_grammar_cmd(body, 'slr')
         else:
             self._json_response(404, {'error': 'not found'})
 
@@ -168,6 +174,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json_response(400, {'error': 'unknown action: ' + action})
 
     def _handle_lr0(self, body):
+        self._handle_grammar_cmd(body, 'lr0')
+
+    def _handle_grammar_cmd(self, body, subcommand):
         grammar_text = body.get('grammar', '')
         grammar_file = body.get('grammar_file', '')
 
@@ -175,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
             if grammar_file not in ALLOWED_GRAMMAR_FILES:
                 self._json_response(400, {'error': 'grammar_file not allowed'})
                 return
-            out, err, code = run_compiler(['lr0', grammar_file, '--format=json'])
+            out, err, code = run_compiler([subcommand, grammar_file, '--format=json'])
         elif grammar_text:
             if len(grammar_text) > 50000:
                 self._json_response(400, {'error': 'grammar too large (max 50KB)'})
@@ -184,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
                 f.write(grammar_text)
                 tmp = f.name
             try:
-                out, err, code = run_compiler(['lr0', tmp, '--format=json'])
+                out, err, code = run_compiler([subcommand, tmp, '--format=json'])
             finally:
                 os.unlink(tmp)
         else:
@@ -197,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 self._json_response(500, {'error': 'invalid compiler output', 'stderr': err.strip()})
         else:
-            self._json_response(400, {'error': err.strip() or 'lr0 build failed'})
+            self._json_response(400, {'error': err.strip() or f'{subcommand} build failed'})
 
     def log_message(self, fmt, *args):
         sys.stderr.write('[api] %s\n' % (fmt % args))
@@ -211,7 +220,7 @@ if __name__ == '__main__':
 
     print(f'Compiler API server starting on port {port}')
     print(f'Compiler binary: {COMPILER}')
-    print(f'Endpoints: POST /api/scan, POST /api/dfa, POST /api/lr0, GET /api/health')
+    print(f'Endpoints: POST /api/scan, POST /api/dfa, POST /api/lr0, POST /api/slr, GET /api/health')
     server = HTTPServer(('0.0.0.0', port), Handler)
     try:
         server.serve_forever()

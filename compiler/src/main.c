@@ -4,6 +4,7 @@
 #include "dfa.h"
 #include "grammar.h"
 #include "lr0.h"
+#include "slr.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -402,14 +403,82 @@ static int cmd_lr0(int argc, char **argv) {
     return c.is_lr0 ? 0 : 0; /* 冲突不视为进程错误，由调用方按 conflicts 段判断 */
 }
 
+static int cmd_slr(int argc, char **argv) {
+    const char *grammar_path = NULL;
+    const char *out_path     = NULL;
+    const char *show         = "all";
+    bool json = false;
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+            out_path = argv[++i];
+        } else if (strcmp(argv[i], "--format=json") == 0) {
+            json = true;
+        } else if (strncmp(argv[i], "--show=", 7) == 0) {
+            show = argv[i] + 7;
+        } else if (argv[i][0] != '-') {
+            grammar_path = argv[i];
+        }
+    }
+
+    if (!grammar_path) {
+        fprintf(stderr, "usage: compiler slr <grammar_file> "
+                        "[--show=first|follow|action|goto|conflicts|all] "
+                        "[--format=json] [-o OUT]\n");
+        return 1;
+    }
+
+    Grammar g;
+    grammar_init(&g);
+    if (!grammar_load(&g, grammar_path)) return 1;
+    grammar_augment(&g);
+
+    Lr0Collection *c = calloc(1, sizeof(Lr0Collection));
+    SlrTable      *t = calloc(1, sizeof(SlrTable));
+    if (!c || !t) {
+        fprintf(stderr, "slr: out of memory\n");
+        free(c); free(t);
+        return 1;
+    }
+
+    lr0_init(c, &g);
+    if (!lr0_build(c)) { free(c); free(t); return 1; }
+
+    slr_init(t, &g, c);
+    if (!slr_build(t))  { free(c); free(t); return 1; }
+
+    FILE *out = stdout;
+    if (out_path) {
+        out = fopen(out_path, "w");
+        if (!out) { perror(out_path); free(c); free(t); return 1; }
+    }
+
+    if (json) {
+        slr_to_json(t, out);
+    } else if (strcmp(show, "first") == 0 || strcmp(show, "follow") == 0) {
+        slr_print_sets(t, out);
+    } else if (strcmp(show, "action") == 0 || strcmp(show, "goto") == 0) {
+        slr_print_tables(t, out);
+    } else if (strcmp(show, "conflicts") == 0) {
+        slr_print_conflicts(t, out);
+    } else {
+        slr_print(t, out);
+    }
+
+    if (out != stdout) fclose(out);
+    free(c); free(t);
+    return 0;
+}
+
 static void print_usage(const char *argv0) {
     fprintf(stderr,
         "usage:\n"
         "  %s dfa <file.dfa> [--enumerate N] [--test STR] [--trace] [--format=json]\n"
         "  %s scan [-f IN [-o OUT]] [--impl=table|--impl=hand] [--table DFA] [--compare] [--format=json]\n"
         "  %s lr0 <file.grammar> [--show=closure|goto|conflicts|productions|all] [--format=json] [-o OUT]\n"
+        "  %s slr <file.grammar> [--show=first|follow|action|goto|conflicts|all] [--format=json] [-o OUT]\n"
         "  %s [--stage=scan] [-f IN [-o OUT]]   (legacy mode)\n",
-        argv0, argv0, argv0, argv0);
+        argv0, argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -418,6 +487,7 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "dfa") == 0) return cmd_dfa(argc - 2, argv + 2);
     if (strcmp(argv[1], "scan") == 0) return cmd_scan(argc - 2, argv + 2);
     if (strcmp(argv[1], "lr0") == 0) return cmd_lr0(argc - 2, argv + 2);
+    if (strcmp(argv[1], "slr") == 0) return cmd_slr(argc - 2, argv + 2);
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage(argv[0]);

@@ -1,0 +1,7 @@
+# 悬挂 else 文法：经典的移进-归约冲突案例。
+# LR(0) 与 SLR(1) 都无法消解（FOLLOW(S) 含 ELSE，与移进项冲突）。
+%start S
+%terminals IF THEN ELSE a
+
+S -> IF E THEN S | IF E THEN S ELSE S | a
+E -> a

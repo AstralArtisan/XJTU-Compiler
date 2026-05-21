@@ -7,7 +7,7 @@
   <title>XJTU Compiler Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=lr0-canvas-20260511">
+  <link rel="stylesheet" href="style.css?v=slr-20260521">
 </head>
 <body>
 
@@ -22,6 +22,7 @@
         <button class="nav-tab active" data-view="dfa" role="tab" aria-selected="true">DFA Explorer</button>
         <button class="nav-tab" data-view="scanner" role="tab" aria-selected="false">Lexical Analyzer</button>
         <button class="nav-tab" data-view="lr0" role="tab" aria-selected="false">LR(0) Builder</button>
+        <button class="nav-tab" data-view="slr" role="tab" aria-selected="false">SLR(1) Builder</button>
       </div>
     </div>
     <a href="https://github.com/AstralArtisan/XJTU-Compiler" class="nav-github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -232,6 +233,91 @@
     </div>
   </main>
 
-  <script src="app.js?v=lr0-fallback-20260511b"></script>
+  <!-- ═══════ SLR(1) Builder ═══════ -->
+  <main id="view-slr" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>SLR(1) Analysis Table</h2>
+        <p class="subtitle">Reads the LR(0) canonical collection and uses FOLLOW sets to fill ACTION/GOTO and report conflicts.</p>
+      </div>
+
+      <div class="grid-2-1">
+        <div>
+          <div class="field">
+            <label for="slr-grammar">Grammar</label>
+            <textarea id="slr-grammar" class="code-input code-input-lg" rows="8" spellcheck="false" aria-label="Grammar for SLR"
+                      placeholder="# %start E&#10;# %terminals ADD MUL LPAR RPAR ID&#10;E -> E ADD T | T&#10;T -> T MUL F | F&#10;F -> LPAR E RPAR | ID"></textarea>
+            <span class="field-hint">Same DSL as LR(0) Builder. Try the SLR-Resolves sample to see FOLLOW disambiguate.</span>
+          </div>
+          <div class="action-bar">
+            <button id="btn-slr-sample" class="btn btn-secondary">Expr (textbook)</button>
+            <button id="btn-slr-demo" class="btn btn-secondary">SLR-Resolves</button>
+            <button id="btn-slr-dangling" class="btn btn-secondary">Dangling Else</button>
+            <button id="btn-slr-ambig" class="btn btn-secondary">Ambiguous Expr</button>
+            <button id="btn-slr-build" class="btn btn-primary">Build SLR(1)</button>
+          </div>
+        </div>
+        <div class="sidebar-stack">
+          <section class="section">
+            <h3>Verdict</h3>
+            <div id="slr-status" class="stats-badge" aria-live="polite">Waiting for input</div>
+            <p class="muted" id="slr-summary">FIRST/FOLLOW, ACTION/GOTO and conflicts will appear after build.</p>
+          </section>
+          <section class="section">
+            <h3>Conflicts</h3>
+            <div id="slr-conflicts" class="result-box" aria-live="polite">
+              <p class="muted">No grammar built yet.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h3>FIRST / FOLLOW Sets</h3>
+      </div>
+      <div id="slr-sets-empty" class="table-empty">
+        <p>FIRST and FOLLOW sets will appear here.</p>
+      </div>
+      <div id="slr-sets-grid" class="slr-sets-grid hidden"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h3>ACTION Table</h3>
+        <span class="muted" style="font-size:.78rem">
+          <span class="slr-key shift">s</span> shift ·
+          <span class="slr-key reduce">r</span> reduce ·
+          <span class="slr-key accept">acc</span> accept ·
+          <span class="slr-key conflict">!</span> conflict
+        </span>
+      </div>
+      <div class="table-wrap">
+        <table id="slr-action-table" class="slr-table hidden"></table>
+      </div>
+      <div id="slr-action-empty" class="table-empty">
+        <p>ACTION table will appear after build.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h3>GOTO Table</h3>
+      </div>
+      <div class="table-wrap">
+        <table id="slr-goto-table" class="slr-table hidden"></table>
+      </div>
+      <div id="slr-goto-empty" class="table-empty">
+        <p>GOTO table will appear after build.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/shared.js?v=split-20260521"></script>
+  <script src="js/dfa.js?v=split-20260521"></script>
+  <script src="js/scanner.js?v=split-20260521"></script>
+  <script src="js/lr0.js?v=split-20260521"></script>
+  <script src="js/slr.js?v=split-20260521"></script>
 </body>
 </html>

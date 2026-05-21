@@ -1,0 +1,9 @@
+# SLR(1) 消解归约-归约冲突的典型示例。
+# LR(0)：状态 I 中同时有 A -> c · 与 B -> c · 两条归约项目，必然冲突。
+# SLR(1)：FOLLOW(A) = {a}，FOLLOW(B) = {b}，两条归约对应的输入互不相交，冲突消解。
+%start S
+%terminals a b c
+
+S -> A a | B b
+A -> c
+B -> c
