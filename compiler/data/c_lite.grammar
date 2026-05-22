@@ -44,7 +44,7 @@ WhileStmt -> WHILE LPAR B RPAR Stmt
 
 ReturnStmt -> RETURN | RETURN Expr
 
-Call -> ID LPAR RPAR | ID LPAR ArgList RPAR
+Call -> ID LPAR RPAR | ID LPAR ArgList RPAR | ID LPAR ArgList CMA RPAR
 
 PrintStmt -> PRINT ID
 
@@ -58,4 +58,4 @@ Expr -> Expr ADD Term | Expr SUB Term | Term
 
 Term -> Term MUL Factor | Term DIV Factor | Factor
 
-Factor -> NUM | FLOAT_LIT | ID | ID LPAR RPAR | ID LPAR ArgList RPAR | ID LBK Expr RBK | LPAR Expr RPAR
+Factor -> NUM | FLOAT_LIT | ID | ID LPAR RPAR | ID LPAR ArgList RPAR | ID LPAR ArgList CMA RPAR | ID LBK Expr RBK | LPAR Expr RPAR

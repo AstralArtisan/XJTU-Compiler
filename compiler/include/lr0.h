@@ -6,8 +6,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define LR0_MAX_ITEMS  256
-#define LR0_MAX_STATES 128
+#define LR0_MAX_ITEMS  384
+#define LR0_MAX_STATES 256
 #define LR0_MAX_GOTO   (LR0_MAX_STATES * GR_MAX_SYMBOLS)
 #define LR0_MAX_CONFLICT_ITEMS 8
 
