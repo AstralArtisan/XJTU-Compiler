@@ -7,7 +7,7 @@
   <title>XJTU Compiler Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=slr-20260521">
+  <link rel="stylesheet" href="style.css?v=parse-20260521">
 </head>
 <body>
 
@@ -23,6 +23,7 @@
         <button class="nav-tab" data-view="scanner" role="tab" aria-selected="false">Lexical Analyzer</button>
         <button class="nav-tab" data-view="lr0" role="tab" aria-selected="false">LR(0) Builder</button>
         <button class="nav-tab" data-view="slr" role="tab" aria-selected="false">SLR(1) Builder</button>
+        <button class="nav-tab" data-view="parse" role="tab" aria-selected="false">Parse &amp; Semantic</button>
       </div>
     </div>
     <a href="https://github.com/AstralArtisan/XJTU-Compiler" class="nav-github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -314,10 +315,104 @@
     </section>
   </main>
 
-  <script src="js/shared.js?v=split-20260521"></script>
-  <script src="js/dfa.js?v=split-20260521"></script>
-  <script src="js/scanner.js?v=split-20260521"></script>
-  <script src="js/lr0.js?v=split-20260521"></script>
-  <script src="js/slr.js?v=split-20260521"></script>
+  <!-- ═══════ Parse & Semantic Analyzer (Lab5) ═══════ -->
+  <main id="view-parse" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>Parser &amp; Semantic Analyzer</h2>
+        <span id="parse-status" class="stats-badge">Idle</span>
+      </div>
+      <p class="subtitle">SLR(1) 表驱动的语法分析器，构造 AST + 维护栈式符号表 + 报告语义错误。33 个测试用例可直接加载。</p>
+      <div class="action-bar">
+        <label for="parse-case" class="muted" style="margin:0">用例：</label>
+        <select id="parse-case" class="input" style="max-width:140px">
+          <option value="">— 选择 —</option>
+        </select>
+        <button id="btn-parse-clear" class="btn btn-secondary">清空</button>
+        <button id="btn-parse-run" class="btn btn-primary">Parse</button>
+        <button id="btn-parse-runall" class="btn btn-secondary">Run all 33</button>
+        <label class="muted" style="margin-left:auto"><input type="checkbox" id="parse-trace" /> 剧场模式</label>
+      </div>
+    </section>
+
+    <div class="parse-grid">
+      <section class="section">
+        <h3>Source Code</h3>
+        <textarea id="parse-source" class="code-input code-input-lg" spellcheck="false"
+                  placeholder="int main() {&#10;    int x;&#10;    x = 5;&#10;    return 0&#10;};&#10;main()"></textarea>
+      </section>
+      <section class="section">
+        <h3>Abstract Syntax Tree</h3>
+        <div id="parse-ast" class="ast-tree">
+          <p class="muted">点击 Parse 后显示 AST。</p>
+        </div>
+      </section>
+      <section class="section">
+        <h3>Symbol Table</h3>
+        <div id="parse-symtab" class="symtab-pane">
+          <p class="muted">符号表将在解析完成后呈现。</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="section">
+      <h3>Errors / Diagnostics</h3>
+      <div id="parse-errors" class="err-list">
+        <p class="muted">尚未运行。</p>
+      </div>
+    </section>
+
+    <section id="parse-batch" class="section hidden">
+      <div class="section-header">
+        <h3>Batch Regression — 33 Cases</h3>
+        <span id="parse-batch-stats" class="stats-badge"></span>
+      </div>
+      <div id="parse-batch-result" class="batch-grid"></div>
+    </section>
+
+    <section id="parse-theater" class="section hidden">
+      <div class="section-header">
+        <h3>Analysis Theater (单步动画)</h3>
+        <span id="theater-stats" class="stats-badge">no trace</span>
+      </div>
+      <div class="action-bar">
+        <button id="theater-rewind" class="btn btn-secondary" title="rewind">«</button>
+        <button id="theater-back"   class="btn btn-secondary" title="prev">‹</button>
+        <button id="theater-play"   class="btn btn-primary"   title="play/pause">▶</button>
+        <button id="theater-next"   class="btn btn-secondary" title="next">›</button>
+        <button id="theater-end"    class="btn btn-secondary" title="end">»</button>
+        <label class="muted" style="margin-left:8px">速度</label>
+        <input id="theater-speed" type="range" min="80" max="800" value="320" />
+        <span id="theater-step" class="muted">step 0 / 0</span>
+      </div>
+      <div class="theater-grid">
+        <div class="theater-col">
+          <h4>Tokens</h4>
+          <div id="theater-tokens" class="theater-tokens"></div>
+        </div>
+        <div class="theater-col">
+          <h4>Stack</h4>
+          <div id="theater-stack" class="theater-stack"></div>
+          <div id="theater-action" class="theater-action"></div>
+        </div>
+        <div class="theater-col">
+          <h4>AST Canvas</h4>
+          <div id="theater-ast" class="theater-ast"></div>
+        </div>
+        <div class="theater-col">
+          <h4>Symbol Table</h4>
+          <div id="theater-symtab" class="theater-symtab"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/shared.js?v=parse-20260521"></script>
+  <script src="js/dfa.js?v=parse-20260521"></script>
+  <script src="js/scanner.js?v=parse-20260521"></script>
+  <script src="js/lr0.js?v=parse-20260521"></script>
+  <script src="js/slr.js?v=parse-20260521"></script>
+  <script src="js/parse_cases.js?v=parse-20260521"></script>
+  <script src="js/parse.js?v=parse-20260521"></script>
 </body>
 </html>

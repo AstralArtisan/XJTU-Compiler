@@ -10,7 +10,9 @@ endif
 
 TARGET := compiler$(EXEEXT)
 SRC := src/token.c src/scanner.c src/dfa.c src/table_scanner.c \
-       src/grammar.c src/lr0.c src/slr.c src/main.c
+       src/grammar.c src/lr0.c src/slr.c \
+       src/ast.c src/symtab.c src/parser.c src/semantic.c \
+       src/main.c
 OBJ := $(SRC:.c=.o)
 
 .PHONY: all clean test deploy-web check-web

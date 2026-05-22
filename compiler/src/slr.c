@@ -177,7 +177,8 @@ static void record_conflict(SlrTable *t, int state, int sym,
     t->is_slr1 = false;
 }
 
-/* 尝试在 ACTION[state][sym] 写入 act。冲突时记录并保留已有动作。 */
+/* 尝试在 ACTION[state][sym] 写入 act。冲突时记录；shift-reduce 走 prefer-shift
+ * （与 yacc/bison 默认一致），reduce-reduce 保留先到的（编号较小的产生式优先）。 */
 static void try_set_action(SlrTable *t, int state, int sym, SlrAction act) {
     SlrAction *cell = &t->action[state][sym];
     if (cell->kind == SLR_ACTION_ERROR) {
@@ -185,6 +186,25 @@ static void try_set_action(SlrTable *t, int state, int sym, SlrAction act) {
         return;
     }
     if (cell->kind == act.kind && cell->target == act.target) return; /* 同动作幂等 */
+
+    /* shift 优先于 reduce */
+    bool existing_is_shift = (cell->kind == SLR_ACTION_SHIFT);
+    bool incoming_is_shift = (act.kind  == SLR_ACTION_SHIFT);
+
+    if (existing_is_shift && !incoming_is_shift) {
+        /* 保留 shift，记一条 dropped reduce */
+        record_conflict(t, state, sym, cell->kind, cell->target, act.kind, act.target);
+        return;
+    }
+    if (!existing_is_shift && incoming_is_shift) {
+        /* 用 shift 覆盖已有 reduce；日志中"kept"应当是 shift，"dropped"是 reduce */
+        SlrActionKind dropped_kind   = cell->kind;
+        int           dropped_target = cell->target;
+        *cell = act;
+        record_conflict(t, state, sym, act.kind, act.target, dropped_kind, dropped_target);
+        return;
+    }
+    /* 同种动作不同目标：保留先到的，记冲突 */
     record_conflict(t, state, sym, cell->kind, cell->target, act.kind, act.target);
 }
 

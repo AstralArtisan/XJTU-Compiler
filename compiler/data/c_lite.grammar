@@ -1,0 +1,61 @@
+# C-Lite 主文法（实验五）
+# 对应 PPT 附录 A：函数声明 + 入口调用、声明、控制流、表达式、关系表达式
+# 形参用分号分隔（含末尾），实参用逗号；语句列表用分号分隔，最末语句不带分号
+# 函数体后带分号，符合 1.src ~ 33.src 的样式
+%start P
+%terminals INT FLOAT_KW VOID IF ELSE WHILE RETURN PRINT INPUT
+%terminals ID NUM FLOAT_LIT
+%terminals ADD SUB MUL DIV LT LE EQ GT GE NE
+%terminals ASG LPAR RPAR LBK RBK LBR RBR CMA SCO
+
+P -> Decls
+
+Decls -> Decls Decl | Decl
+
+Decl -> FuncDef | VarDecl SCO | Call
+
+VarDecl -> Type ID | Type ID LBK NUM RBK
+
+Type -> INT | FLOAT_KW | VOID
+
+FuncDef -> Type ID LPAR ParamList RPAR Body SCO | Type ID LPAR RPAR Body SCO
+
+ParamList -> ParamList Param | Param
+
+Param -> Type ID SCO | Type ID LBK RBK SCO
+
+Body -> LBR StmtList RBR
+
+StmtList -> Stmt | StmtList SCO Stmt
+
+Stmt -> Matched | Unmatched
+
+Matched -> IF LPAR B RPAR Matched ELSE Matched | OtherStmt
+
+Unmatched -> IF LPAR B RPAR Stmt | IF LPAR B RPAR Matched ELSE Unmatched
+
+OtherStmt -> VarDecl | Assign | WhileStmt | ReturnStmt | Call | PrintStmt | InputStmt | Block
+
+Block -> LBR StmtList RBR
+
+Assign -> ID ASG Expr | ID LBK Expr RBK ASG Expr
+
+WhileStmt -> WHILE LPAR B RPAR Stmt
+
+ReturnStmt -> RETURN | RETURN Expr
+
+Call -> ID LPAR RPAR | ID LPAR ArgList RPAR
+
+PrintStmt -> PRINT ID
+
+InputStmt -> INPUT ID
+
+ArgList -> ArgList CMA Expr | Expr
+
+B -> Expr | Expr LT Expr | Expr LE Expr | Expr EQ Expr | Expr GT Expr | Expr GE Expr | Expr NE Expr
+
+Expr -> Expr ADD Term | Expr SUB Term | Term
+
+Term -> Term MUL Factor | Term DIV Factor | Factor
+
+Factor -> NUM | FLOAT_LIT | ID | ID LPAR RPAR | ID LPAR ArgList RPAR | ID LBK Expr RBK | LPAR Expr RPAR
