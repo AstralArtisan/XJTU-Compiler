@@ -486,8 +486,171 @@ static int collect_tokens(TableScanner *ts, Token *buf, int cap) {
     return n;
 }
 
+/* token_name 的逆映射，用于从 JSON 字段还原 TokenKind */
+static TokenKind token_kind_from_name(const char *name) {
+    for (int k = TK_ERR; k <= TK_DOT; k++) {
+        const char *n = token_name((TokenKind)k);
+        if (n && strcmp(n, name) == 0) return (TokenKind)k;
+    }
+    return TK_ERR;
+}
+
+/* ── 轻量 JSON token 流解析 ──────────────────────────── */
+/* 接受形如 [{"kind":"ID","lexeme":"main","line":1,"col":5}, ...] 的数组 */
+
+typedef struct {
+    const char *p;
+    const char *end;
+} JsonCursor;
+
+static void json_skip_ws(JsonCursor *j) {
+    while (j->p < j->end && (*j->p == ' ' || *j->p == '\t' ||
+                              *j->p == '\n' || *j->p == '\r' || *j->p == ',')) {
+        j->p++;
+    }
+}
+
+/* 把下一个 JSON 字符串解码到 buf（最长 cap-1），成功返回 true */
+static bool json_parse_string(JsonCursor *j, char *buf, size_t cap) {
+    json_skip_ws(j);
+    if (j->p >= j->end || *j->p != '"') return false;
+    j->p++;
+    size_t n = 0;
+    while (j->p < j->end && *j->p != '"') {
+        char c = *j->p++;
+        if (c == '\\' && j->p < j->end) {
+            char esc = *j->p++;
+            switch (esc) {
+                case 'n': c = '\n'; break;
+                case 'r': c = '\r'; break;
+                case 't': c = '\t'; break;
+                case '"': case '\\': case '/': c = esc; break;
+                default:  c = esc; break;
+            }
+        }
+        if (n + 1 < cap) buf[n++] = c;
+    }
+    if (j->p >= j->end) return false;
+    j->p++; /* 跳过尾部 " */
+    buf[n] = '\0';
+    return true;
+}
+
+static bool json_parse_int(JsonCursor *j, int *out) {
+    json_skip_ws(j);
+    if (j->p >= j->end) return false;
+    bool neg = false;
+    if (*j->p == '-') { neg = true; j->p++; }
+    if (j->p >= j->end || *j->p < '0' || *j->p > '9') return false;
+    int v = 0;
+    while (j->p < j->end && *j->p >= '0' && *j->p <= '9') {
+        v = v * 10 + (*j->p - '0');
+        j->p++;
+    }
+    *out = neg ? -v : v;
+    return true;
+}
+
+/* 期望紧接着出现指定字符；遇到则消费并返回 true */
+static bool json_expect(JsonCursor *j, char ch) {
+    json_skip_ws(j);
+    if (j->p < j->end && *j->p == ch) { j->p++; return true; }
+    return false;
+}
+
+/* 从 JSON 文件加载 token 数组到 buf。返回读入的 token 数；
+ * 出错路径把诊断写入 errs（LEX 类）后返回 -1。 */
+static int load_tokens_from_json(const char *path, Token *buf, int cap, ErrList *errs) {
+    char *text = read_file(path);
+    if (!text) {
+        err_list_push(errs, ERR_LEX, 0, 0, "cannot open token file '%s'", path);
+        return -1;
+    }
+    JsonCursor jc = { text, text + strlen(text) };
+    if (!json_expect(&jc, '[')) {
+        err_list_push(errs, ERR_LEX, 0, 0, "token JSON must start with '['");
+        free(text);
+        return -1;
+    }
+    int n = 0;
+    while (1) {
+        json_skip_ws(&jc);
+        if (jc.p < jc.end && *jc.p == ']') { jc.p++; break; }
+        if (n >= cap) {
+            err_list_push(errs, ERR_LEX, 0, 0,
+                          "token stream too long (max %d)", cap);
+            free(text);
+            return -1;
+        }
+        if (!json_expect(&jc, '{')) {
+            err_list_push(errs, ERR_LEX, 0, 0, "expected '{' at token index %d", n);
+            free(text);
+            return -1;
+        }
+        Token t = (Token){0};
+        bool have_kind = false;
+        while (1) {
+            json_skip_ws(&jc);
+            if (jc.p < jc.end && *jc.p == '}') { jc.p++; break; }
+            char key[32];
+            if (!json_parse_string(&jc, key, sizeof(key))) {
+                err_list_push(errs, ERR_LEX, 0, 0,
+                              "expected JSON key at token %d", n);
+                free(text);
+                return -1;
+            }
+            if (!json_expect(&jc, ':')) {
+                err_list_push(errs, ERR_LEX, 0, 0,
+                              "expected ':' after key '%s' (token %d)", key, n);
+                free(text);
+                return -1;
+            }
+            if (strcmp(key, "kind") == 0) {
+                char val[32];
+                if (!json_parse_string(&jc, val, sizeof(val))) {
+                    err_list_push(errs, ERR_LEX, 0, 0,
+                                  "kind must be a string (token %d)", n);
+                    free(text);
+                    return -1;
+                }
+                TokenKind k = token_kind_from_name(val);
+                if (k == TK_ERR && strcmp(val, "ERR") != 0) {
+                    err_list_push(errs, ERR_LEX, 0, 0,
+                                  "unknown token kind '%s' (token %d)", val, n);
+                }
+                t.kind = k;
+                have_kind = true;
+            } else if (strcmp(key, "lexeme") == 0) {
+                json_parse_string(&jc, t.lexeme, sizeof(t.lexeme));
+            } else if (strcmp(key, "line") == 0) {
+                json_parse_int(&jc, &t.line);
+            } else if (strcmp(key, "col") == 0) {
+                json_parse_int(&jc, &t.col);
+            } else {
+                /* 未知字段：吞掉它的值 */
+                json_skip_ws(&jc);
+                if (jc.p < jc.end && *jc.p == '"') {
+                    char dummy[256];
+                    json_parse_string(&jc, dummy, sizeof(dummy));
+                } else {
+                    int v;
+                    json_parse_int(&jc, &v);
+                }
+            }
+        }
+        if (!have_kind) {
+            err_list_push(errs, ERR_LEX, t.line, t.col,
+                          "token %d missing 'kind' field", n);
+        }
+        buf[n++] = t;
+    }
+    free(text);
+    return n;
+}
+
 static int cmd_parse(int argc, char **argv) {
     const char *in_path = NULL;
+    const char *tokens_path = NULL;
     const char *out_path = NULL;
     const char *grammar_path = "data/c_lite.grammar";
     const char *dfa_path = DEFAULT_LEXER_DFA;
@@ -498,6 +661,8 @@ static int cmd_parse(int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
             in_path = argv[++i];
+        } else if (strcmp(argv[i], "--tokens") == 0 && i + 1 < argc) {
+            tokens_path = argv[++i];
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             out_path = argv[++i];
         } else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) {
@@ -514,17 +679,41 @@ static int cmd_parse(int argc, char **argv) {
         }
     }
 
-    if (!in_path) {
+    if (!in_path && !tokens_path) {
         fprintf(stderr,
-            "usage: compiler parse -f IN [-o OUT] [--grammar PATH] [--dfa PATH]\n"
+            "usage: compiler parse [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
             "                      [--show=ast|symtab|errors|all] [--format=json] [--trace=json]\n");
         return 1;
     }
+    if (in_path && tokens_path) {
+        fprintf(stderr, "compiler parse: -f and --tokens are mutually exclusive\n");
+        return 1;
+    }
 
+    /* Token 流由两种途径之一产生：内部 lexer 或外部 JSON 文件 */
     DFA dfa;
-    if (!load_table_dfa(&dfa, dfa_path)) return 1;
-    char *src = read_file(in_path);
-    if (!src) return 1;
+    char *src = NULL;
+    AstArena arena;
+    SymTab   symtab;
+    ErrList  errors;
+    arena_init(&arena);
+    symtab_init(&symtab);
+    err_list_init(&errors);
+    static Token toks[PARSER_TOKEN_CAP];
+    int n_tok = 0;
+
+    if (in_path) {
+        if (!load_table_dfa(&dfa, dfa_path)) return 1;
+        src = read_file(in_path);
+        if (!src) return 1;
+        TableScanner ts;
+        ts_init(&ts, &dfa, src);
+        n_tok = collect_tokens(&ts, toks, PARSER_TOKEN_CAP);
+    } else {
+        int n = load_tokens_from_json(tokens_path, toks, PARSER_TOKEN_CAP, &errors);
+        if (n < 0) n_tok = 0;
+        else       n_tok = n;
+    }
 
     Grammar g;
     grammar_init(&g);
@@ -538,18 +727,6 @@ static int cmd_parse(int argc, char **argv) {
     if (!lr0_build(lc)) { free(lc); free(st); free(src); return 1; }
     slr_init(st, &g, lc);
     slr_build(st);
-
-    TableScanner ts;
-    ts_init(&ts, &dfa, src);
-    static Token toks[PARSER_TOKEN_CAP];
-    int n_tok = collect_tokens(&ts, toks, PARSER_TOKEN_CAP);
-
-    AstArena arena;
-    SymTab   symtab;
-    ErrList  errors;
-    arena_init(&arena);
-    symtab_init(&symtab);
-    err_list_init(&errors);
 
     /* lexer 的 ERR token 已经在 ts.error_count 里统计；同步进 errors */
     for (int i = 0; i < n_tok; i++) {
@@ -640,7 +817,8 @@ static void print_usage(const char *argv0) {
         "  %s scan [-f IN [-o OUT]] [--impl=table|--impl=hand] [--table DFA] [--compare] [--format=json]\n"
         "  %s lr0 <file.grammar> [--show=closure|goto|conflicts|productions|all] [--format=json] [-o OUT]\n"
         "  %s slr <file.grammar> [--show=first|follow|action|goto|conflicts|all] [--format=json] [-o OUT]\n"
-        "  %s parse -f IN [-o OUT] [--grammar PATH] [--dfa PATH] [--show=...] [--format=json] [--trace=json]\n"
+        "  %s parse [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
+        "                  [--show=...] [--format=json] [--trace=json]\n"
         "  %s [--stage=scan] [-f IN [-o OUT]]   (legacy mode)\n",
         argv0, argv0, argv0, argv0, argv0, argv0);
 }

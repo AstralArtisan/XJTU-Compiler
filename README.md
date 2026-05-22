@@ -82,16 +82,25 @@ make clean && make
 
 ### 完整解析 + 语义分析 (Lab5)
 
+支持两种入参，等价产出 AST / 符号表 / 错误列表：
+
 ```bash
-./compiler parse -f tests/1.src                                     # 完整管线：tokens → AST → 符号表 → 错误
+# 模式 A：内部 lexer 直连（短路写法）
+./compiler parse -f tests/1.src
 ./compiler parse -f tests/1.src --show=ast
 ./compiler parse -f tests/6.src --show=errors                       # 仅看错误
+
+# 模式 B：PPT 要求的三件入参——把 Lab2 输出的 token 流喂进 Lab5
+./compiler scan  -f tests/1.src --format=json > tokens.json
+./compiler parse --tokens tokens.json --grammar data/c_lite.grammar --show=all
+
+# 通用选项
 ./compiler parse -f tests/1.src --format=json                       # 给前端用
 ./compiler parse -f tests/1.src --trace=json                        # 附加 steps[]/productions[] 供剧场重放
-python tests/run_parse.py                                            # 跑全部 33 个 .src 给四象限统计
+python tests/run_parse.py                                            # 端到端能力演示：跑全部 33 个 .src
 ```
 
-默认文法 `data/c_lite.grammar`，默认词法 DFA `data/lexer.dfa`。
+默认文法 `data/c_lite.grammar`，默认词法 DFA `data/lexer.dfa`。`-f` 与 `--tokens` 互斥；两者都缺会打印 usage。
 
 ## 在线可视化
 
