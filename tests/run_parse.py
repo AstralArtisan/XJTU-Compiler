@@ -24,9 +24,25 @@ DEFAULT_GRAMMAR  = "data/c_lite.grammar"
 # 注释里出现这些汉字 / 短语，视为 should-fail
 FAIL_PATTERNS = re.compile(r"错误|不支持|未声明|未定义|不一致|溢出")
 
+# 部分用例虽未带注释，但实际含违反 PPT 主文法 / 附录 A 词法的瑕疵（经老师确认）：
+# 5  print a 中 a 未声明；
+# 11 void acc() 却 return 0，add(3.48,) 单参对双形参；
+# 21 形参缺末尾分号 + 数组花括号初始化 + i/j 未声明；
+# 22 第 6 行 `}；` 全角分号；
+# 23 if-else 后多写 `;`；
+# 24 形参缺末尾分号 + 声明同时赋值；
+# 27 内层 if-else 后多写 `;`；
+# 28 `max(arr[],)` 中 arr[] 不是合法实参形态；
+# 29 数组花括号初始化 + 笔误；
+# 30 第 2 行 `int result；` 全角分号；
+# 31 第 4 行 `}；` 全角分号。
+EXTRA_EXPECTED_FAIL = {"5","11","21","22","23","24","27","28","29","30","31"}
+
 
 def expected_status(src: Path) -> str:
-    """通过文件末尾若干行的中文注释判断预期。"""
+    """先按文件末尾注释推断，再用 EXTRA_EXPECTED_FAIL 兜底。"""
+    if src.stem in EXTRA_EXPECTED_FAIL:
+        return "fail"
     text = src.read_bytes().decode("utf-8", errors="replace")
     for raw in text.splitlines()[::-1][:8]:
         line = raw.strip()

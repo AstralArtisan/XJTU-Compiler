@@ -1,7 +1,4 @@
-# C-Lite 主文法（实验五）
-# 对应 PPT 附录 A：函数声明 + 入口调用、声明、控制流、表达式、关系表达式
-# 形参用分号分隔（含末尾），实参用逗号；语句列表用分号分隔，最末语句不带分号
-# 函数体后带分号，符合 1.src ~ 33.src 的样式
+# 主文法
 %start P
 %terminals INT FLOAT_KW VOID IF ELSE WHILE RETURN PRINT INPUT
 %terminals ID NUM FLOAT_LIT
