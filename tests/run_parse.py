@@ -58,14 +58,19 @@ def run_parse(compiler: Path, grammar: str, src: Path) -> str:
     try:
         res = subprocess.run(
             [str(compiler), "parse", "-f", str(src), "--grammar", grammar, "--format=json"],
-            capture_output=True, text=True, timeout=15, cwd=str(REPO / "compiler"),
+            capture_output=True, text=True, errors="replace",
+            timeout=15, cwd=str(compiler.parent),
         )
     except Exception:
         return "crash"
     if not res.stdout.strip():
         return "crash"
+    stdout = res.stdout
+    brace = stdout.find("{")
+    if brace > 0:
+        stdout = stdout[brace:]
     try:
-        data = json.loads(res.stdout)
+        data = json.loads(stdout)
     except json.JSONDecodeError:
         return "crash"
     return "pass" if data.get("accepted") else "fail"
@@ -77,7 +82,7 @@ def main() -> int:
     ap.add_argument("--grammar",  default=DEFAULT_GRAMMAR)
     args = ap.parse_args()
 
-    compiler = Path(args.compiler)
+    compiler = Path(args.compiler).resolve()
     if not compiler.exists():
         print(f"compiler not found: {compiler}", file=sys.stderr)
         return 2
