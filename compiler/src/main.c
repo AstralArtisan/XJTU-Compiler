@@ -1,3 +1,6 @@
+#ifndef _WIN32
+#define _GNU_SOURCE
+#endif
 #include "token.h"
 #include "scanner.h"
 #include "table_scanner.h"
@@ -10,6 +13,13 @@
 #include "parser.h"
 #include "semantic.h"
 #include "ir.h"
+#include "memmap.h"
+#include "asm_arm64.h"
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -955,6 +965,238 @@ static int cmd_ir(int argc, char **argv) {
     return accepted ? 0 : 1;
 }
 
+/* ── cmd_codegen: 共用 parse → ir → memmap → (asm) → 可选 exec 的流水线 ─── */
+
+typedef enum { CG_MEMMAP, CG_ASM, CG_EXEC } CodegenMode;
+
+static int cmd_codegen(int argc, char **argv, CodegenMode mode) {
+    const char *in_path = NULL, *tokens_path = NULL, *out_path = NULL;
+    const char *grammar_path = "data/c_lite.grammar";
+    const char *dfa_path = DEFAULT_LEXER_DFA;
+    const char *stdin_arg = NULL;
+    bool json = false;
+    const char *show = (mode == CG_MEMMAP) ? "all" : "asm";
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) in_path = argv[++i];
+        else if (strcmp(argv[i], "--tokens") == 0 && i + 1 < argc) tokens_path = argv[++i];
+        else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) out_path = argv[++i];
+        else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) grammar_path = argv[++i];
+        else if (strcmp(argv[i], "--dfa") == 0 && i + 1 < argc) dfa_path = argv[++i];
+        else if (strcmp(argv[i], "--stdin") == 0 && i + 1 < argc) stdin_arg = argv[++i];
+        else if (strcmp(argv[i], "--format=json") == 0) json = true;
+        else if (strncmp(argv[i], "--show=", 7) == 0) show = argv[i] + 7;
+    }
+
+    if (!in_path && !tokens_path) {
+        const char *cmd = (mode == CG_MEMMAP) ? "memmap" : (mode == CG_ASM ? "asm" : "exec");
+        fprintf(stderr,
+            "usage: compiler %s [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
+            "                  [--show=...] [--format=json]%s\n",
+            cmd, mode == CG_EXEC ? " [--stdin STR]" : "");
+        return 1;
+    }
+    if (in_path && tokens_path) {
+        fprintf(stderr, "-f and --tokens are mutually exclusive\n");
+        return 1;
+    }
+
+    DFA dfa;
+    char *src = NULL;
+    AstArena arena;  SymTab symtab;  ErrList errors;
+    arena_init(&arena); symtab_init(&symtab); err_list_init(&errors);
+    static Token toks[PARSER_TOKEN_CAP];
+    int n_tok = 0;
+
+    if (in_path) {
+        if (!load_table_dfa(&dfa, dfa_path)) return 1;
+        src = read_file(in_path);
+        if (!src) return 1;
+        TableScanner ts;  ts_init(&ts, &dfa, src);
+        n_tok = collect_tokens(&ts, toks, PARSER_TOKEN_CAP);
+    } else {
+        int n = load_tokens_from_json(tokens_path, toks, PARSER_TOKEN_CAP, &errors);
+        n_tok = (n < 0) ? 0 : n;
+    }
+
+    Grammar g;  grammar_init(&g);
+    if (!grammar_load(&g, grammar_path)) { free(src); return 1; }
+    grammar_augment(&g);
+
+    Lr0Collection *lc = calloc(1, sizeof(Lr0Collection));
+    SlrTable *st = calloc(1, sizeof(SlrTable));
+    if (!lc || !st) { free(lc); free(st); free(src); return 1; }
+    lr0_init(lc, &g);
+    if (!lr0_build(lc)) { free(lc); free(st); free(src); return 1; }
+    slr_init(st, &g, lc);  slr_build(st);
+
+    for (int i = 0; i < n_tok; i++) {
+        if (toks[i].kind == TK_ERR) {
+            err_list_push(&errors, ERR_LEX, toks[i].line, toks[i].col,
+                          "unrecognized lexeme '%s'", toks[i].lexeme);
+        }
+    }
+
+    Parser p; parser_init(&p, &arena, &symtab, &errors, &g, st);
+    p.trace = NULL;
+    AstNode *root = parser_run(&p, toks, n_tok);
+    if (root) semantic_check(root, &symtab, &errors);
+    bool accepted = (errors.count == 0);
+
+    QuadList quads;  quad_list_init(&quads);
+    if (root && accepted) ir_generate(&quads, root, &symtab);
+
+    MemMap mm;  memmap_build(&mm, &quads, &symtab);
+
+    /* asm 文本：先写到 tmpfile，再读回 buf（跨平台） */
+    char *asm_buf = NULL;  size_t asm_len = 0;
+    if (mode == CG_ASM || mode == CG_EXEC) {
+        FILE *tf = tmpfile();
+        if (tf) {
+            asm_arm64_emit(&quads, &mm, tf);
+            fflush(tf);
+            long sz = ftell(tf);
+            if (sz > 0) {
+                rewind(tf);
+                asm_buf = malloc((size_t)sz + 1);
+                if (asm_buf) {
+                    asm_len = fread(asm_buf, 1, (size_t)sz, tf);
+                    asm_buf[asm_len] = '\0';
+                }
+            }
+            fclose(tf);
+        }
+    }
+
+    /* CG_EXEC：写 .s 到临时文件，gcc 编译，运行（仅 POSIX 平台） */
+    char prog_stdout[8192] = "";
+    char compile_stderr[2048] = "";
+    int exit_code = -1;
+#ifndef _WIN32
+    if (mode == CG_EXEC && accepted && asm_buf) {
+        char tmpl_s[] = "/tmp/compiler_asm_XXXXXX.s";
+        char tmpl_e[] = "/tmp/compiler_exe_XXXXXX";
+        int fd_s = mkstemps(tmpl_s, 2);
+        int fd_e = mkstemp(tmpl_e);
+        if (fd_s >= 0) { (void)!write(fd_s, asm_buf, asm_len); close(fd_s); }
+        if (fd_e >= 0) close(fd_e);
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd), "gcc -o %s %s 2>&1", tmpl_e, tmpl_s);
+        FILE *gp = popen(cmd, "r");
+        if (gp) {
+            fread(compile_stderr, 1, sizeof(compile_stderr) - 1, gp);
+            int gc = pclose(gp);
+            if (gc == 0) {
+                char run_cmd[1024];
+                if (stdin_arg && *stdin_arg) {
+                    snprintf(run_cmd, sizeof(run_cmd),
+                             "printf %%s '%s' | timeout 5 %s 2>&1", stdin_arg, tmpl_e);
+                } else {
+                    snprintf(run_cmd, sizeof(run_cmd),
+                             "timeout 5 %s </dev/null 2>&1", tmpl_e);
+                }
+                FILE *rp = popen(run_cmd, "r");
+                if (rp) {
+                    fread(prog_stdout, 1, sizeof(prog_stdout) - 1, rp);
+                    int rc = pclose(rp);
+                    exit_code = (rc == -1) ? -1 : WEXITSTATUS(rc);
+                }
+            } else {
+                exit_code = -2;
+            }
+        }
+        unlink(tmpl_s); unlink(tmpl_e);
+    }
+#else
+    if (mode == CG_EXEC) {
+        snprintf(compile_stderr, sizeof(compile_stderr),
+                 "exec mode is POSIX-only; use server-side compiler exec.\n");
+    }
+#endif
+    (void)stdin_arg;
+
+    FILE *out = stdout;
+    if (out_path) {
+        out = fopen(out_path, "w");
+        if (!out) { perror(out_path); free(lc); free(st); free(src); free(asm_buf); return 1; }
+    }
+
+    if (json) {
+        fprintf(out, "{\n  \"accepted\": %s,\n", accepted ? "true" : "false");
+        fprintf(out, "  \"errors\": "); err_list_to_json(&errors, out);
+        fprintf(out, ",\n  \"symtab\": "); symtab_to_json(&symtab, out);
+        fprintf(out, ",\n  \"quads\": "); ir_to_json(&quads, out);
+        fprintf(out, ",\n  \"memmap\": "); memmap_to_json(&mm, out);
+        if (asm_buf) {
+            fprintf(out, ",\n  \"asm\": ");
+            fputc('"', out);
+            for (size_t i = 0; i < asm_len; i++) {
+                char c = asm_buf[i];
+                if (c == '"') fputs("\\\"", out);
+                else if (c == '\\') fputs("\\\\", out);
+                else if (c == '\n') fputs("\\n", out);
+                else if (c == '\t') fputs("\\t", out);
+                else if (c == '\r') fputs("\\r", out);
+                else fputc(c, out);
+            }
+            fputc('"', out);
+        }
+        if (mode == CG_EXEC) {
+            fprintf(out, ",\n  \"compile_stderr\": ");
+            fputc('"', out);
+            for (char *p2 = compile_stderr; *p2; p2++) {
+                if (*p2 == '"') fputs("\\\"", out);
+                else if (*p2 == '\\') fputs("\\\\", out);
+                else if (*p2 == '\n') fputs("\\n", out);
+                else fputc(*p2, out);
+            }
+            fputc('"', out);
+            fprintf(out, ",\n  \"program_stdout\": ");
+            fputc('"', out);
+            for (char *p2 = prog_stdout; *p2; p2++) {
+                if (*p2 == '"') fputs("\\\"", out);
+                else if (*p2 == '\\') fputs("\\\\", out);
+                else if (*p2 == '\n') fputs("\\n", out);
+                else fputc(*p2, out);
+            }
+            fputc('"', out);
+            fprintf(out, ",\n  \"exit_code\": %d", exit_code);
+        }
+        fprintf(out, "\n}\n");
+    } else {
+        if (strcmp(show, "errors") == 0 || strcmp(show, "all") == 0) {
+            err_list_print(&errors, out); fputc('\n', out);
+        }
+        if (mode == CG_MEMMAP &&
+            (strcmp(show, "memmap") == 0 || strcmp(show, "all") == 0)) {
+            memmap_print(&mm, out); fputc('\n', out);
+        }
+        if ((mode == CG_ASM || mode == CG_EXEC) &&
+            (strcmp(show, "asm") == 0 || strcmp(show, "all") == 0) && asm_buf) {
+            fwrite(asm_buf, 1, asm_len, out);
+        }
+        if (mode == CG_EXEC) {
+            fprintf(out, "\n--- compile stderr ---\n%s", compile_stderr);
+            fprintf(out, "--- program stdout ---\n%s", prog_stdout);
+            fprintf(out, "--- exit code: %d ---\n", exit_code);
+        }
+        if (strcmp(show, "all") == 0)
+            fprintf(out, "Status: %s\n", accepted ? "ACCEPTED" : "FAILED");
+    }
+
+    if (out != stdout) fclose(out);
+    arena_free(&arena);
+    quad_list_free(&quads);
+    free(asm_buf);
+    free(lc); free(st); free(src);
+    return accepted ? 0 : 1;
+}
+
+static int cmd_memmap(int argc, char **argv) { return cmd_codegen(argc, argv, CG_MEMMAP); }
+static int cmd_asm   (int argc, char **argv) { return cmd_codegen(argc, argv, CG_ASM); }
+static int cmd_exec  (int argc, char **argv) { return cmd_codegen(argc, argv, CG_EXEC); }
+
 static void print_usage(const char *argv0) {
     fprintf(stderr,
         "usage:\n"
@@ -979,6 +1221,9 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "slr") == 0) return cmd_slr(argc - 2, argv + 2);
     if (strcmp(argv[1], "parse") == 0) return cmd_parse(argc - 2, argv + 2);
     if (strcmp(argv[1], "ir") == 0) return cmd_ir(argc - 2, argv + 2);
+    if (strcmp(argv[1], "memmap") == 0) return cmd_memmap(argc - 2, argv + 2);
+    if (strcmp(argv[1], "asm")    == 0) return cmd_asm   (argc - 2, argv + 2);
+    if (strcmp(argv[1], "exec")   == 0) return cmd_exec  (argc - 2, argv + 2);
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage(argv[0]);

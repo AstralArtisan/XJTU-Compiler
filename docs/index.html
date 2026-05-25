@@ -7,7 +7,7 @@
   <title>XJTU Compiler Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=ir2-20260525">
+  <link rel="stylesheet" href="style.css?v=lab78-20260525">
 </head>
 <body>
 
@@ -25,6 +25,8 @@
         <button class="nav-tab" data-view="slr" role="tab" aria-selected="false">SLR(1) Builder</button>
         <button class="nav-tab" data-view="parse" role="tab" aria-selected="false">Parse &amp; Semantic</button>
         <button class="nav-tab" data-view="ir" role="tab" aria-selected="false">IR Generator</button>
+        <button class="nav-tab" data-view="memmap" role="tab" aria-selected="false">Memory Map</button>
+        <button class="nav-tab" data-view="asm" role="tab" aria-selected="false">Assembly &amp; Run</button>
       </div>
     </div>
     <a href="https://github.com/AstralArtisan/XJTU-Compiler" class="nav-github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -464,13 +466,103 @@
     </section>
   </main>
 
-  <script src="js/shared.js?v=ir2-20260525"></script>
-  <script src="js/dfa.js?v=ir2-20260525"></script>
-  <script src="js/scanner.js?v=ir2-20260525"></script>
-  <script src="js/lr0.js?v=ir2-20260525"></script>
-  <script src="js/slr.js?v=ir2-20260525"></script>
-  <script src="js/parse_cases.js?v=ir2-20260525"></script>
-  <script src="js/parse.js?v=ir2-20260525"></script>
-  <script src="js/ir.js?v=ir2-20260525"></script>
+  <!-- ═══════ Memory Map (Lab7) ═══════ -->
+  <main id="view-memmap" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>Memory Map — 内存地址映射</h2>
+        <span id="mm-status" class="stats-badge">Idle</span>
+      </div>
+      <p class="subtitle">基于四元式与符号表给每个函数分配栈帧：形参、局部变量、临时变量、全局变量各得其位。</p>
+      <div class="action-bar">
+        <label for="mm-case" class="muted" style="margin:0">用例：</label>
+        <select id="mm-case" class="input" style="max-width:140px">
+          <option value="">— 选择 —</option>
+        </select>
+        <button id="btn-mm-clear" class="btn btn-secondary">清空</button>
+        <button id="btn-mm-run" class="btn btn-primary">Compute</button>
+        <span id="mm-summary" class="muted" style="margin-left:auto"></span>
+      </div>
+    </section>
+    <div class="ir-grid">
+      <section class="section">
+        <h3>Source Code</h3>
+        <textarea id="mm-source" class="code-input code-input-lg" spellcheck="false"></textarea>
+      </section>
+      <section class="section">
+        <h3>Quadruples</h3>
+        <div id="mm-quads" class="quad-wrap"><p class="muted">点击 Compute 后显示。</p></div>
+      </section>
+      <section class="section">
+        <h3>Memory Layout</h3>
+        <div id="mm-layout" class="mm-layout"><p class="muted">栈帧表将在计算后呈现。</p></div>
+      </section>
+    </div>
+    <section class="section">
+      <h3>Errors / Diagnostics</h3>
+      <div id="mm-errors" class="err-list"><p class="muted">尚未运行。</p></div>
+    </section>
+  </main>
+
+  <!-- ═══════ Assembly & Run (Lab8) ═══════ -->
+  <main id="view-asm" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>Assembly &amp; Run — AArch64 目标代码 + 服务器真实运行</h2>
+        <span id="asm-status" class="stats-badge">Idle</span>
+      </div>
+      <p class="subtitle">把四元式翻译为 AArch64 汇编 (GAS 语法)，通过 /api/run 在服务器上用 gcc 编译并真实运行，把 stdout 直接送回浏览器。</p>
+      <div class="action-bar">
+        <label for="asm-case" class="muted" style="margin:0">用例：</label>
+        <select id="asm-case" class="input" style="max-width:140px">
+          <option value="">— 选择 —</option>
+        </select>
+        <button id="btn-asm-clear" class="btn btn-secondary">清空</button>
+        <button id="btn-asm-gen" class="btn btn-secondary">Generate Asm</button>
+        <button id="btn-asm-run" class="btn btn-primary">Compile &amp; Run</button>
+        <label class="muted" style="margin-left:8px">stdin：</label>
+        <input id="asm-stdin" class="input" placeholder="(可选)" style="max-width:140px" />
+        <span id="asm-summary" class="muted" style="margin-left:auto"></span>
+      </div>
+    </section>
+    <div class="asm-grid">
+      <section class="section">
+        <h3>Source Code</h3>
+        <textarea id="asm-source" class="code-input code-input-lg" spellcheck="false"></textarea>
+      </section>
+      <section class="section">
+        <h3>AArch64 Assembly</h3>
+        <pre id="asm-text" class="asm-pre">点击 Generate Asm 或 Compile &amp; Run 后显示。</pre>
+      </section>
+    </div>
+    <section class="section">
+      <h3>Program Output</h3>
+      <div class="run-grid">
+        <div>
+          <div class="run-label">stdout</div>
+          <pre id="asm-stdout" class="run-pre"></pre>
+        </div>
+        <div>
+          <div class="run-label">compile stderr</div>
+          <pre id="asm-cstderr" class="run-pre"></pre>
+        </div>
+        <div>
+          <div class="run-label">exit code</div>
+          <pre id="asm-exit" class="run-pre"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/shared.js?v=lab78-20260525"></script>
+  <script src="js/dfa.js?v=lab78-20260525"></script>
+  <script src="js/scanner.js?v=lab78-20260525"></script>
+  <script src="js/lr0.js?v=lab78-20260525"></script>
+  <script src="js/slr.js?v=lab78-20260525"></script>
+  <script src="js/parse_cases.js?v=lab78-20260525"></script>
+  <script src="js/parse.js?v=lab78-20260525"></script>
+  <script src="js/ir.js?v=lab78-20260525"></script>
+  <script src="js/memmap.js?v=lab78-20260525"></script>
+  <script src="js/asm.js?v=lab78-20260525"></script>
 </body>
 </html>

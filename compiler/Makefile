@@ -13,6 +13,7 @@ SRC := src/token.c src/scanner.c src/dfa.c src/table_scanner.c \
        src/grammar.c src/lr0.c src/slr.c \
        src/ast.c src/symtab.c src/parser.c src/semantic.c \
        src/ir.c \
+       src/memmap.c src/asm_arm64.c \
        src/main.c
 OBJ := $(SRC:.c=.o)
 

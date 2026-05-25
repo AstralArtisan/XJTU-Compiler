@@ -126,6 +126,31 @@ python tests/run_parse.py                                            # 端到端
 
 控制流采用 emit-and-fix（先发射 `IF_FALSE t _ L` / `GOTO _ _ L`，立即固化 `LABEL _ _ L`），无需回填表。函数定义包一对 `FUNC_BEGIN name` / `FUNC_END name`，便于 Lab7 切函数做内存分配。
 
+### 内存映射 (Lab7)
+
+把四元式与符号表喂给 `memmap` 模块，给每个函数计算栈帧：形参、局部变量、临时变量按 64-bit 槽位连续向下分配，frame_size 对齐到 16，全局变量进 `.bss`。
+
+```bash
+./compiler memmap -f tests/1.src --show=all
+# Function main (frame=32 bytes):
+#   [x29, -16]  x  local  int  size=8
+```
+
+### AArch64 汇编 + 服务器真实运行 (Lab8)
+
+汇编模块把每条四元式翻译成 2–5 行 AArch64 GAS 汇编，顶部嵌入 `__print` / `__input` 包装函数（调 libc 的 printf / scanf）。输出可直接被 `gcc` 编译并跑：
+
+```bash
+# 本地仅生成汇编文本
+./compiler asm -f tests/1.src -o /tmp/t.s
+
+# 服务器上直接编译并运行（仅 Linux/aarch64）
+./compiler exec -f /tmp/demo.src
+# stdout: 42 / exit_code: 0
+```
+
+公网 API `POST /api/run` 在服务器上做完整流水线（源代码 → 汇编 → gcc → 运行），返回 `program_stdout` + `compile_stderr` + `exit_code`。前端 Assembly & Run tab 的 "Compile & Run" 按钮直接调它。
+
 ## 在线可视化
 
 [https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/) 提供六个并列视图：
@@ -159,6 +184,19 @@ FIRST/FOLLOW 卡片 + ACTION/GOTO 二维表（shift 蓝、reduce 绿、accept �
 - **四元式着色**：op 按 6 类语义着色（算术蓝 / 关系绿 / 控制流橙 / IO 紫 / 函数边界灰 / 数组青）；临时变量、字面量、标签也各自高亮
 - **标签联动**：鼠标移到 `IF_FALSE` 或 `GOTO` 的标签，对应 `LABEL` 行整行金色高亮
 - **批量看板**：Generate all 33 复用 Parse tab 的预期表，色块分 pass / fail-as-expected / mismatch / error 四类
+
+### Memory Map (Lab7)
+
+- **三栏布局**：源代码 / 四元式 / 栈帧卡片
+- **每个函数一张卡**：含 frame_size、形参 / 局部 / 临时变量四种 slot，行内带 `[x29, ±N]` 寻址与字节大小
+- **全局段独立呈现**：`.bss` 中的变量按类型与大小列出
+
+### Assembly & Run (Lab8)
+
+- **左右两栏**：源代码 / AArch64 汇编（按指令类别上色：标签紫、`bl/cmp/b.*` 橙、`ldr/str/ldp/stp/adrp` 灰、`add/sub/mul/sdiv` 蓝、寄存器青、立即数绿）
+- **Compile & Run 按钮**：调 `/api/run` 在服务器上 gcc 编译 + 真实运行，stdout / compile_stderr / exit_code 三块面板分别呈现
+- **stdin 框**：给程序的 `input` 调用喂数据
+- **整套验收的杀手锏**：源代码 → token → AST → 符号表 → 四元式 → 栈帧 → 汇编 → 真实 stdout 一气贯通
 
 ## 架构
 
@@ -257,6 +295,8 @@ Decls -> Decls Decl | Decl
 | Lab4 | SLR(1) 分析表（含 flex+bison 等价对照） | ✅ |
 | Lab5 | SLR 驱动语义分析（AST + 符号表 + 类型检查 + 剧场可视化 + 33 用例回归） | ✅ |
 | Lab6 | 中间代码生成（AST → 四元式 + 前端 IR Generator + 33 用例批量回归） | ✅ |
+| Lab7 | 内存地址映射（每个函数的栈帧 + 全局变量布局，前端 Memory Map tab） | ✅ |
+| Lab8 | 目标代码生成（AArch64 GAS 汇编 + 服务器 gcc 真实编译运行，前端 Assembly & Run tab） | ✅ |
 | Lab7 | 内存映射 | 🔲 |
 | Lab8 | 目标代码生成 | 🔲 |
 
@@ -273,3 +313,6 @@ Decls -> Decls Decl | Decl
 | `/api/slr`    | POST | 同上 | SLR(1) 分析表 |
 | `/api/parse`  | POST | `{"source":"...","trace":bool}` | 完整解析；trace=true 附带 steps[] |
 | `/api/ir`     | POST | `{"source":"..."}`              | 完整解析 + 四元式 quads[]/temp_count/label_count |
+| `/api/memmap` | POST | `{"source":"..."}`              | + `memmap` 字段（栈帧、全局段） |
+| `/api/asm`    | POST | `{"source":"..."}`              | + `asm` 字段（AArch64 GAS 汇编文本） |
+| `/api/run`    | POST | `{"source":"...","stdin":"..."}` | + 服务器 gcc 编译 + 运行结果（program_stdout/compile_stderr/exit_code） |

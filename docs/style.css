@@ -621,6 +621,53 @@ body {
 
 #ir-summary { font-family: 'JetBrains Mono', monospace; font-size: .78rem; }
 
+/* ── Memory Map (Lab7) ────────────────────────────── */
+.mm-layout { font-family: 'JetBrains Mono', monospace; font-size: .8rem; max-height: 520px; overflow-y: auto; }
+.mm-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; }
+.mm-card .mm-head { color: var(--purple); font-weight: 600; margin-bottom: 6px; font-size: .82rem; }
+.mm-card .mm-frame { color: var(--text-2); font-size: .72rem; }
+.mm-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+.mm-table td { padding: 2px 6px; border-bottom: 1px dashed var(--bg-3); }
+.mm-table td.mm-off { color: var(--orange); font-variant-numeric: tabular-nums; text-align: right; width: 80px; }
+.mm-table td.mm-name { color: var(--cyan); }
+.mm-table td.mm-kind { color: var(--text-3); width: 60px; }
+.mm-table td.mm-size { color: var(--text-2); text-align: right; width: 56px; }
+.mm-kind-param  { color: var(--blue) !important; }
+.mm-kind-local  { color: var(--text-1) !important; }
+.mm-kind-temp   { color: var(--purple) !important; }
+.mm-kind-global { color: var(--green) !important; }
+
+/* ── Assembly & Run (Lab8) ────────────────────────── */
+.asm-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; margin: 16px 0; }
+@media (max-width: 1100px) { .asm-grid { grid-template-columns: 1fr; } }
+.asm-pre {
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: .78rem;
+  line-height: 1.45; max-height: 640px; overflow: auto; white-space: pre;
+  color: var(--text-1);
+}
+.asm-pre .a-comment { color: var(--text-3); font-style: italic; }
+.asm-pre .a-label   { color: var(--purple); font-weight: 600; }
+.asm-pre .a-mnem    { color: var(--blue); }
+.asm-pre .a-mnem-ctrl { color: var(--orange); }
+.asm-pre .a-mnem-mem  { color: var(--text-2); }
+.asm-pre .a-reg     { color: var(--cyan); }
+.asm-pre .a-imm     { color: var(--green); }
+.asm-pre .a-direct  { color: var(--text-3); }
+
+.run-grid { display: grid; grid-template-columns: 2fr 1fr 60px; gap: 14px; }
+@media (max-width: 800px) { .run-grid { grid-template-columns: 1fr; } }
+.run-label { color: var(--text-2); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.run-pre {
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 8px 10px; font-family: 'JetBrains Mono', monospace; font-size: .8rem;
+  min-height: 64px; max-height: 240px; overflow: auto; white-space: pre-wrap;
+  color: var(--text-1);
+}
+#asm-stdout { color: var(--green); }
+#asm-cstderr { color: var(--red); }
+#asm-exit { color: var(--orange); text-align: center; font-weight: 600; }
+
 /* ── Scrollbar ───────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
