@@ -9,6 +9,7 @@
 #include "symtab.h"
 #include "parser.h"
 #include "semantic.h"
+#include "ir.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -810,6 +811,150 @@ static int cmd_parse(int argc, char **argv) {
     return accepted ? 0 : 1;
 }
 
+static int cmd_ir(int argc, char **argv) {
+    const char *in_path = NULL;
+    const char *tokens_path = NULL;
+    const char *out_path = NULL;
+    const char *grammar_path = "data/c_lite.grammar";
+    const char *dfa_path = DEFAULT_LEXER_DFA;
+    bool json = false;
+    const char *show = "quads";
+
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
+            in_path = argv[++i];
+        } else if (strcmp(argv[i], "--tokens") == 0 && i + 1 < argc) {
+            tokens_path = argv[++i];
+        } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+            out_path = argv[++i];
+        } else if (strcmp(argv[i], "--grammar") == 0 && i + 1 < argc) {
+            grammar_path = argv[++i];
+        } else if (strcmp(argv[i], "--dfa") == 0 && i + 1 < argc) {
+            dfa_path = argv[++i];
+        } else if (strcmp(argv[i], "--format=json") == 0) {
+            json = true;
+        } else if (strncmp(argv[i], "--show=", 7) == 0) {
+            show = argv[i] + 7;
+        }
+    }
+
+    if (!in_path && !tokens_path) {
+        fprintf(stderr,
+            "usage: compiler ir [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
+            "                   [--show=quads|symtab|errors|all] [--format=json]\n");
+        return 1;
+    }
+    if (in_path && tokens_path) {
+        fprintf(stderr, "compiler ir: -f and --tokens are mutually exclusive\n");
+        return 1;
+    }
+
+    /* —— parse 阶段（前置） —— */
+    DFA dfa;
+    char *src = NULL;
+    AstArena arena;
+    SymTab   symtab;
+    ErrList  errors;
+    arena_init(&arena);
+    symtab_init(&symtab);
+    err_list_init(&errors);
+    static Token toks[PARSER_TOKEN_CAP];
+    int n_tok = 0;
+
+    if (in_path) {
+        if (!load_table_dfa(&dfa, dfa_path)) return 1;
+        src = read_file(in_path);
+        if (!src) return 1;
+        TableScanner ts;
+        ts_init(&ts, &dfa, src);
+        n_tok = collect_tokens(&ts, toks, PARSER_TOKEN_CAP);
+    } else {
+        int n = load_tokens_from_json(tokens_path, toks, PARSER_TOKEN_CAP, &errors);
+        n_tok = (n < 0) ? 0 : n;
+    }
+
+    Grammar g;
+    grammar_init(&g);
+    if (!grammar_load(&g, grammar_path)) { free(src); return 1; }
+    grammar_augment(&g);
+
+    Lr0Collection *lc = calloc(1, sizeof(Lr0Collection));
+    SlrTable      *st = calloc(1, sizeof(SlrTable));
+    if (!lc || !st) { free(lc); free(st); free(src); return 1; }
+    lr0_init(lc, &g);
+    if (!lr0_build(lc)) { free(lc); free(st); free(src); return 1; }
+    slr_init(st, &g, lc);
+    slr_build(st);
+
+    for (int i = 0; i < n_tok; i++) {
+        if (toks[i].kind == TK_ERR) {
+            err_list_push(&errors, ERR_LEX, toks[i].line, toks[i].col,
+                          "unrecognized lexeme '%s'", toks[i].lexeme);
+        }
+    }
+
+    Parser p;
+    parser_init(&p, &arena, &symtab, &errors, &g, st);
+    p.trace = NULL;
+    AstNode *root = parser_run(&p, toks, n_tok);
+    if (root) semantic_check(root, &symtab, &errors);
+    bool accepted = (errors.count == 0);
+
+    /* —— IR 生成 —— */
+    QuadList quads;
+    quad_list_init(&quads);
+    if (root) ir_generate(&quads, root, &symtab);
+
+    FILE *out = stdout;
+    if (out_path) {
+        out = fopen(out_path, "w");
+        if (!out) { perror(out_path); free(lc); free(st); free(src); return 1; }
+    }
+
+    if (json) {
+        fprintf(out, "{\n  \"accepted\": %s,\n", accepted ? "true" : "false");
+        fprintf(out, "  \"tokens\": [");
+        for (int i = 0; i < n_tok; i++) {
+            if (i) fputc(',', out);
+            fprintf(out, "{\"kind\":\"%s\",\"lexeme\":\"%s\",\"line\":%d,\"col\":%d}",
+                    token_name(toks[i].kind), toks[i].lexeme, toks[i].line, toks[i].col);
+        }
+        fprintf(out, "],\n  \"ast\": ");
+        ast_to_json(root, out);
+        fprintf(out, ",\n  \"symtab\": ");
+        symtab_to_json(&symtab, out);
+        fprintf(out, ",\n  \"errors\": ");
+        err_list_to_json(&errors, out);
+        fprintf(out, ",\n  \"quads\": ");
+        ir_to_json(&quads, out);
+        fprintf(out, ",\n  \"temp_count\": %d,\n  \"label_count\": %d\n}\n",
+                quads.next_temp, quads.next_label);
+    } else {
+        if (strcmp(show, "errors") == 0 || strcmp(show, "all") == 0) {
+            err_list_print(&errors, out);
+            fprintf(out, "\n");
+        }
+        if (strcmp(show, "symtab") == 0 || strcmp(show, "all") == 0) {
+            symtab_print(&symtab, out);
+            fprintf(out, "\n");
+        }
+        if (strcmp(show, "quads") == 0 || strcmp(show, "all") == 0) {
+            fprintf(out, "Quadruples (%d total):\n", quads.count);
+            ir_print(&quads, out);
+            fprintf(out, "\n");
+        }
+        if (strcmp(show, "all") == 0) {
+            fprintf(out, "Status: %s\n", accepted ? "ACCEPTED" : "FAILED");
+        }
+    }
+
+    if (out != stdout) fclose(out);
+    arena_free(&arena);
+    quad_list_free(&quads);
+    free(lc); free(st); free(src);
+    return accepted ? 0 : 1;
+}
+
 static void print_usage(const char *argv0) {
     fprintf(stderr,
         "usage:\n"
@@ -819,8 +964,10 @@ static void print_usage(const char *argv0) {
         "  %s slr <file.grammar> [--show=first|follow|action|goto|conflicts|all] [--format=json] [-o OUT]\n"
         "  %s parse [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
         "                  [--show=...] [--format=json] [--trace=json]\n"
+        "  %s ir [-f IN | --tokens FILE.json] [-o OUT] [--grammar PATH] [--dfa PATH]\n"
+        "                  [--show=quads|symtab|errors|all] [--format=json]\n"
         "  %s [--stage=scan] [-f IN [-o OUT]]   (legacy mode)\n",
-        argv0, argv0, argv0, argv0, argv0, argv0);
+        argv0, argv0, argv0, argv0, argv0, argv0, argv0);
 }
 
 int main(int argc, char **argv) {
@@ -831,6 +978,7 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "lr0") == 0) return cmd_lr0(argc - 2, argv + 2);
     if (strcmp(argv[1], "slr") == 0) return cmd_slr(argc - 2, argv + 2);
     if (strcmp(argv[1], "parse") == 0) return cmd_parse(argc - 2, argv + 2);
+    if (strcmp(argv[1], "ir") == 0) return cmd_ir(argc - 2, argv + 2);
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
         print_usage(argv[0]);

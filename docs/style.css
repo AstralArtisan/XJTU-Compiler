@@ -559,6 +559,68 @@ body {
 .theater-scope-head { color: var(--purple); font-weight: 600; font-size: .72rem; margin-bottom: 2px; }
 .theater-sym { color: var(--text-1); padding-left: 6px; }
 
+/* ── IR Generator (Lab6) ──────────────────────────── */
+.ir-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+@media (max-width: 1100px) {
+  .ir-grid { grid-template-columns: 1fr; }
+}
+
+.quad-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .82rem;
+}
+.quad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.quad-table th, .quad-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--bg-3);
+  text-align: left;
+}
+.quad-table thead th {
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  position: sticky; top: 0;
+}
+.quad-table td.q-i      { color: var(--text-3); width: 36px; text-align: right; }
+.quad-table td.q-op     { font-weight: 600; }
+.quad-table td.q-arg    { color: var(--text-1); }
+.quad-table td.q-result { color: var(--cyan); }
+
+.quad-table tr.q-row    { transition: background .12s; }
+.quad-table tr.q-row:hover                  { background: rgba(255,255,255,.03); }
+.quad-table tr.q-target-hi                  { background: rgba(245,158,11,.18) !important; }
+.quad-table tr.q-source-hi                  { background: rgba(167,139,250,.12) !important; }
+
+/* op 类别着色 */
+.q-cat-arith  .q-op { color: var(--blue); }
+.q-cat-rel    .q-op { color: var(--green); }
+.q-cat-ctrl   .q-op { color: var(--orange); }
+.q-cat-io     .q-op { color: var(--purple); }
+.q-cat-func   .q-op { color: var(--text-2); }
+.q-cat-mem    .q-op { color: var(--cyan); }
+.q-cat-assign .q-op { color: var(--text); }
+
+/* 标签与临时变量浅色徽章 */
+.q-arg .q-temp  { color: var(--purple); }
+.q-arg .q-label { color: var(--orange); cursor: pointer; text-decoration: underline dotted; }
+.q-arg .q-lit   { color: var(--cyan); }
+
+#ir-summary { font-family: 'JetBrains Mono', monospace; font-size: .78rem; }
+
 /* ── Scrollbar ───────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

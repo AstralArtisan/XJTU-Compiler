@@ -324,8 +324,8 @@ static AstNode *dispatch_reduce(Parser *p, int prod_id, AstNode **rhs, int n) {
         AstNode *id_node = rhs[0];
         AstNode *call = ast_new(p->arena, AST_CALL, id_node->line, id_node->col);
         strncpy(call->name, id_node->name, AST_MAX_NAME - 1);
-        if (n == 4) {
-            /* ID LPAR ArgList RPAR */
+        if (n == 4 || n == 5) {
+            /* ID LPAR ArgList RPAR  或  ID LPAR ArgList CMA RPAR（实参末尾逗号） */
             AstNode *args = rhs[2];
             for (int i = 0; i < args->child_count; i++)
                 ast_add_child(call, args->children[i]);
@@ -406,6 +406,19 @@ static AstNode *dispatch_reduce(Parser *p, int prod_id, AstNode **rhs, int n) {
                 ast_add_child(idx, rhs[0]);
                 ast_add_child(idx, rhs[2]);
                 return idx;
+            }
+        }
+        if (n == 5) {
+            /* ID LPAR ArgList CMA RPAR（实参末尾逗号） */
+            const char *r0 = prod_rhs_name(p, prod_id, 0);
+            const char *r1 = prod_rhs_name(p, prod_id, 1);
+            if (strieq(r0, "ID") && strieq(r1, "LPAR")) {
+                AstNode *call = ast_new(p->arena, AST_CALL, rhs[0]->line, rhs[0]->col);
+                strncpy(call->name, rhs[0]->name, AST_MAX_NAME - 1);
+                AstNode *args = rhs[2];
+                for (int i = 0; i < args->child_count; i++)
+                    ast_add_child(call, args->children[i]);
+                return call;
             }
         }
     }

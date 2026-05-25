@@ -7,7 +7,7 @@
   <title>XJTU Compiler Visualizer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=parse-20260521">
+  <link rel="stylesheet" href="style.css?v=ir-20260523">
 </head>
 <body>
 
@@ -24,6 +24,7 @@
         <button class="nav-tab" data-view="lr0" role="tab" aria-selected="false">LR(0) Builder</button>
         <button class="nav-tab" data-view="slr" role="tab" aria-selected="false">SLR(1) Builder</button>
         <button class="nav-tab" data-view="parse" role="tab" aria-selected="false">Parse &amp; Semantic</button>
+        <button class="nav-tab" data-view="ir" role="tab" aria-selected="false">IR Generator</button>
       </div>
     </div>
     <a href="https://github.com/AstralArtisan/XJTU-Compiler" class="nav-github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -407,12 +408,69 @@
     </section>
   </main>
 
-  <script src="js/shared.js?v=parse-20260521"></script>
-  <script src="js/dfa.js?v=parse-20260521"></script>
-  <script src="js/scanner.js?v=parse-20260521"></script>
-  <script src="js/lr0.js?v=parse-20260521"></script>
-  <script src="js/slr.js?v=parse-20260521"></script>
-  <script src="js/parse_cases.js?v=parse-20260521"></script>
-  <script src="js/parse.js?v=parse-20260521"></script>
+  <!-- ═══════ IR Generator (Lab6) ═══════ -->
+  <main id="view-ir" class="view">
+    <section class="section">
+      <div class="section-header">
+        <h2>IR Generator — 四元式中间代码</h2>
+        <span id="ir-status" class="stats-badge">Idle</span>
+      </div>
+      <p class="subtitle">基于 Lab5 的 AST 与符号表生成四元式 (op, arg1, arg2, result)。控制流、函数调用、数组读写、IO 全部覆盖。</p>
+      <div class="action-bar">
+        <label for="ir-case" class="muted" style="margin:0">用例：</label>
+        <select id="ir-case" class="input" style="max-width:140px">
+          <option value="">— 选择 —</option>
+        </select>
+        <button id="btn-ir-clear" class="btn btn-secondary">清空</button>
+        <button id="btn-ir-run" class="btn btn-primary">Generate</button>
+        <button id="btn-ir-runall" class="btn btn-secondary">Generate all 33</button>
+        <span id="ir-summary" class="muted" style="margin-left:auto"></span>
+      </div>
+    </section>
+
+    <div class="ir-grid">
+      <section class="section">
+        <h3>Source Code</h3>
+        <textarea id="ir-source" class="code-input code-input-lg" spellcheck="false"
+                  placeholder="int main() {&#10;    int x;&#10;    x = 5;&#10;    return 0&#10;};&#10;main()"></textarea>
+      </section>
+      <section class="section">
+        <h3>Quadruples</h3>
+        <div id="ir-quads" class="quad-wrap">
+          <p class="muted">点击 Generate 后显示四元式。</p>
+        </div>
+      </section>
+      <section class="section">
+        <h3>Symbol Table</h3>
+        <div id="ir-symtab" class="symtab-pane">
+          <p class="muted">符号表将在生成后呈现。</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="section">
+      <h3>Errors / Diagnostics</h3>
+      <div id="ir-errors" class="err-list">
+        <p class="muted">尚未运行。</p>
+      </div>
+    </section>
+
+    <section id="ir-batch" class="section hidden">
+      <div class="section-header">
+        <h3>Batch Regression — 33 Cases</h3>
+        <span id="ir-batch-stats" class="stats-badge"></span>
+      </div>
+      <div id="ir-batch-result" class="batch-grid"></div>
+    </section>
+  </main>
+
+  <script src="js/shared.js?v=ir-20260523"></script>
+  <script src="js/dfa.js?v=ir-20260523"></script>
+  <script src="js/scanner.js?v=ir-20260523"></script>
+  <script src="js/lr0.js?v=ir-20260523"></script>
+  <script src="js/slr.js?v=ir-20260523"></script>
+  <script src="js/parse_cases.js?v=ir-20260523"></script>
+  <script src="js/parse.js?v=ir-20260523"></script>
+  <script src="js/ir.js?v=ir-20260523"></script>
 </body>
 </html>
