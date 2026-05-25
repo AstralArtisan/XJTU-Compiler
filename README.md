@@ -102,9 +102,33 @@ python tests/run_parse.py                                            # 端到端
 
 默认文法 `data/c_lite.grammar`，默认词法 DFA `data/lexer.dfa`。`-f` 与 `--tokens` 互斥；两者都缺会打印 usage。
 
+### 四元式中间代码 (Lab6)
+
+把 Lab5 的 AST/符号表翻译成四元式 `(op, arg1, arg2, result)`，13 类 op 覆盖算术 / 关系 / 控制流 / 函数调用 / 数组读写 / IO。`ir` 子命令是 `parse` 的超集，入参兼容：
+
+```bash
+# 文本输出（默认 --show=quads）
+./compiler ir -f tests/1.src
+# Quadruples (5 total):
+#    1:  (FUNC_BEGIN, main, _, _)
+#    2:  (ASSIGN, 5, _, x)
+#    3:  (RETURN, 0, _, _)
+#    4:  (FUNC_END, main, _, _)
+#    5:  (CALL, main, 0, _)
+
+./compiler ir -f tests/19.src --show=all                 # 四元式 + 符号表 + 错误 + Status
+./compiler ir -f tests/1.src --format=json               # 含 quads/temp_count/label_count 的完整 JSON
+
+# 三件入参形式（与 parse 一致）
+./compiler scan -f tests/1.src --format=json > tokens.json
+./compiler ir --tokens tokens.json --grammar data/c_lite.grammar --show=quads
+```
+
+控制流采用 emit-and-fix（先发射 `IF_FALSE t _ L` / `GOTO _ _ L`，立即固化 `LABEL _ _ L`），无需回填表。函数定义包一对 `FUNC_BEGIN name` / `FUNC_END name`，便于 Lab7 切函数做内存分配。
+
 ## 在线可视化
 
-[https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/) 提供五个并列视图：
+[https://astralartisan.github.io/XJTU-Compiler/](https://astralartisan.github.io/XJTU-Compiler/) 提供六个并列视图：
 
 ### DFA Explorer (Lab1)
 
@@ -128,6 +152,13 @@ FIRST/FOLLOW 卡片 + ACTION/GOTO 二维表（shift 蓝、reduce 绿、accept �
 - **剧场模式**：勾选后跑 `--trace=json`，四列联动单步动画——Token 流（高亮 lookahead）/ 状态栈 / AST 增量画布（节点按 reduce 顺序浮现）/ 符号表
 - **批量看板**：Run all 33 一键跑全部测试用例，色块矩阵给出 pass / fail-as-expected / mismatch 三类分布
 - **用例下拉**：33 份 `.src` 已嵌入前端，离线也能加载
+
+### IR Generator (Lab6)
+
+- **三栏布局**：源代码 / 四元式表 / 符号表盒子
+- **四元式着色**：op 按 6 类语义着色（算术蓝 / 关系绿 / 控制流橙 / IO 紫 / 函数边界灰 / 数组青）；临时变量、字面量、标签也各自高亮
+- **标签联动**：鼠标移到 `IF_FALSE` 或 `GOTO` 的标签，对应 `LABEL` 行整行金色高亮
+- **批量看板**：Generate all 33 复用 Parse tab 的预期表，色块分 pass / fail-as-expected / mismatch / error 四类
 
 ## 架构
 
@@ -225,7 +256,7 @@ Decls -> Decls Decl | Decl
 | Lab3 | LR(0) 项目集规范族 | ✅ |
 | Lab4 | SLR(1) 分析表（含 flex+bison 等价对照） | ✅ |
 | Lab5 | SLR 驱动语义分析（AST + 符号表 + 类型检查 + 剧场可视化 + 33 用例回归） | ✅ |
-| Lab6 | 中间代码生成 | 🔲 |
+| Lab6 | 中间代码生成（AST → 四元式 + 前端 IR Generator + 33 用例批量回归） | ✅ |
 | Lab7 | 内存映射 | 🔲 |
 | Lab8 | 目标代码生成 | 🔲 |
 
@@ -241,3 +272,4 @@ Decls -> Decls Decl | Decl
 | `/api/lr0`    | POST | `{"grammar":"..."}` 或 `{"grammar_file":"..."}` | LR(0) 项目集 |
 | `/api/slr`    | POST | 同上 | SLR(1) 分析表 |
 | `/api/parse`  | POST | `{"source":"...","trace":bool}` | 完整解析；trace=true 附带 steps[] |
+| `/api/ir`     | POST | `{"source":"..."}`              | 完整解析 + 四元式 quads[]/temp_count/label_count |
